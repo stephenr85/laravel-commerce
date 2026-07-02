@@ -32,6 +32,17 @@ class Payment extends Data implements SchemaIdentity
         return $this->status === PaymentStatus::Succeeded;
     }
 
+    /**
+     * The charge could not complete unattended — the Customer must authenticate
+     * (e.g. a 3-D-Secure challenge). The host re-prompts on-session using this
+     * Payment's providerRef; the engine exposes the state, not the provider's
+     * next-action payload.
+     */
+    public function requiresAction(): bool
+    {
+        return $this->status === PaymentStatus::RequiresAction;
+    }
+
     public static function schemaName(): string
     {
         return 'commerce/payment';

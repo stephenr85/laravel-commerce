@@ -73,6 +73,12 @@ _Avoid_: price, amount, cost
 Whether an Order recurs: `one_time` or `recurring`.
 _Avoid_: frequency, interval, term
 
+**BillingAddress**:
+A postal address carried on an Order for address verification and tax, passed into the
+provider's billing-details. Transaction-scoped — a single purchase can use a different address
+than any stored default. There is no shipping address: the engine models money-in, not fulfillment.
+_Avoid_: shipping address, address book
+
 ### Cost-of-goods metering
 
 The plane that sits beneath money-in: composing what a billing party owes from metered
@@ -136,6 +142,40 @@ _Avoid_: token, point, coin (host names for a Credit)
 A party's running balance of Credits: purchased credits minus consumed debits, over one append-only
 ledger. Its balance feeds the spend gate (a `Credit` implementation of the budget source).
 _Avoid_: balance, account, purse
+
+### Card vault
+
+The saved-card seam. Optional and host-implemented (the `CustomerVault` contract) — the engine binds
+no default, like the recurring seam. Every entry is scoped to one Merchant's provider account: a saved
+card belongs to the account that will charge it and never crosses accounts. The card number is
+tokenized by the provider client-side and never touches our servers.
+
+**CustomerVault**:
+The contract for card-on-file: create-or-get a provider customer, begin a card setup, and list /
+default / forget saved cards — all scoped by (Customer, Merchant). A host typically backs it with
+Laravel Cashier's Billable.
+_Avoid_: wallet (Wallet = a Credit balance, a different concept), card store
+
+**VaultedCustomer**:
+The link between a host-owned Customer id and the provider's opaque customer reference on one
+Merchant account.
+_Avoid_: stripe customer, account
+
+**VaultedPaymentMethod**:
+A saved card as neutral display data (brand, last4, expiry, default flag) plus its opaque provider
+reference — the reference a later Order carries to charge it. Never holds a PAN.
+_Avoid_: card, token, source
+
+**SetupTicket**:
+The handle to attach a card without charging: the client secret the browser confirms plus the
+provider's setup reference.
+_Avoid_: setup intent, client secret (that is one field of the ticket)
+
+**RequiresAction** (a `Payment` status):
+The charge could not complete unattended — the Customer must authenticate (e.g. a 3-D-Secure
+challenge). The host re-prompts on-session using the Payment's providerRef; the engine exposes the
+state, not the provider's next-action payload.
+_Avoid_: SCA, 3DS, requires_confirmation
 
 ### Gifting
 

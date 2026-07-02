@@ -6,10 +6,12 @@ namespace Rushing\Commerce\Drivers;
 
 use Illuminate\Support\Str;
 use RuntimeException;
+use Rushing\Commerce\Contracts\CustomerVault;
 use Rushing\Commerce\Contracts\MerchantResolver;
 use Rushing\Commerce\Contracts\MoneyInDriver;
 use Rushing\Commerce\Contracts\StripeClientFactory;
 use Rushing\Commerce\Contracts\SubscriptionBinder;
+use Rushing\Commerce\Data\BillingAddress;
 use Rushing\Commerce\Data\Merchant;
 use Rushing\Commerce\Data\Order;
 use Rushing\Commerce\Data\Payment;
@@ -31,6 +33,7 @@ final class StripeDriver implements MoneyInDriver
         private StripeClientFactory $clients,
         private MerchantResolver $merchants,
         private ?SubscriptionBinder $subscriptions = null,
+        private ?CustomerVault $vault = null,
     ) {}
 
     public function name(): string
@@ -46,15 +49,9 @@ final class StripeDriver implements MoneyInDriver
             return $this->subscribe($order, $merchant);
         }
 
-        $intent = $this->clients->for($merchant)->paymentIntents->create([
-            'amount' => $order->total->minorUnits,
-            'currency' => Str::lower($order->total->currency),
-            'metadata' => array_filter([
-                'order_id' => $order->id,
-                'order_reference' => $order->reference,
-                'customer_id' => $order->customer->id,
-            ], fn ($value) => $value !== null),
-        ]);
+        $intent = $this->clients->for($merchant)->paymentIntents->create(
+            $this->intentParams($order, $merchant)
+        );
 
         return new Payment(
             id: (string) Str::uuid(),
@@ -84,6 +81,83 @@ final class StripeDriver implements MoneyInDriver
         );
     }
 
+    /**
+     * The PaymentIntent params for a one-off Order. A bare Order charges a fresh card
+     * confirmed on the client; an Order that references a saved card, opts to save the
+     * card, or carries a billing address layers the vault fields on top.
+     *
+     * @return array<string, mixed>
+     */
+    private function intentParams(Order $order, Merchant $merchant): array
+    {
+        $params = [
+            'amount' => $order->total->minorUnits,
+            'currency' => Str::lower($order->total->currency),
+            'metadata' => array_filter([
+                'order_id' => $order->id,
+                'order_reference' => $order->reference,
+                'customer_id' => $order->customer->id,
+            ], fn ($value) => $value !== null),
+        ];
+
+        // Referencing or saving a card needs a provider customer to attach it to.
+        if ($order->paymentMethodRef !== null || $order->savePaymentMethod) {
+            if ($this->vault === null) {
+                throw new RuntimeException(
+                    'Saving or charging a stored card requires a CustomerVault implementation. Bind '
+                    .CustomerVault::class.' in the host (e.g. backed by Laravel Cashier) to use saved '
+                    .'payment methods.'
+                );
+            }
+
+            $params['customer'] = $this->vault->resolveCustomer($order->customer, $merchant)->providerRef;
+        }
+
+        // Charge an already-saved card server-side; off-session when the Customer isn't present.
+        if ($order->paymentMethodRef !== null) {
+            $params['payment_method'] = $order->paymentMethodRef;
+            $params['confirm'] = true;
+
+            if ($order->offSession) {
+                $params['off_session'] = true;
+            }
+        }
+
+        // Remember the card presented at checkout for future off-session charges.
+        if ($order->savePaymentMethod) {
+            $params['setup_future_usage'] = 'off_session';
+        }
+
+        // A billing address rides a server-initiated fresh-card charge; when charging a
+        // saved card the details already live on that payment method, and a client-confirmed
+        // Elements flow attaches them there too — so only send them on the fresh path.
+        if ($order->billingAddress !== null && $order->paymentMethodRef === null) {
+            $params['payment_method_data'] = [
+                'billing_details' => self::billingDetails($order->billingAddress),
+            ];
+        }
+
+        return $params;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function billingDetails(BillingAddress $address): array
+    {
+        return array_filter([
+            'name' => $address->name,
+            'address' => array_filter([
+                'line1' => $address->line1,
+                'line2' => $address->line2,
+                'city' => $address->city,
+                'state' => $address->state,
+                'postal_code' => $address->postalCode,
+                'country' => $address->country,
+            ], fn ($value) => $value !== null),
+        ], fn ($value) => $value !== null && $value !== []);
+    }
+
     private function subscribe(Order $order, Merchant $merchant): Payment
     {
         if ($this->subscriptions === null) {
@@ -101,6 +175,8 @@ final class StripeDriver implements MoneyInDriver
         return match ($status) {
             PaymentIntent::STATUS_SUCCEEDED => PaymentStatus::Succeeded,
             PaymentIntent::STATUS_CANCELED => PaymentStatus::Failed,
+            PaymentIntent::STATUS_REQUIRES_ACTION,
+            PaymentIntent::STATUS_REQUIRES_CONFIRMATION => PaymentStatus::RequiresAction,
             default => PaymentStatus::Pending,
         };
     }

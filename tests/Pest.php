@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Rushing\Commerce\Data\BillingAddress;
 use Rushing\Commerce\Data\Customer;
 use Rushing\Commerce\Data\LineItem;
 use Rushing\Commerce\Data\Money;
@@ -21,6 +22,10 @@ function testOrder(
     Cadence $cadence = Cadence::OneTime,
     ?PurchaseKind $kind = null,
     string $currency = 'USD',
+    ?string $paymentMethodRef = null,
+    bool $savePaymentMethod = false,
+    bool $offSession = false,
+    ?BillingAddress $billingAddress = null,
 ): Order {
     return Order::for(
         customer: new Customer(id: 'cus_1', name: 'Ada', email: 'ada@example.test'),
@@ -28,5 +33,9 @@ function testOrder(
         cadence: $cadence,
         kind: $kind,
         currency: $currency,
+        paymentMethodRef: $paymentMethodRef,
+        savePaymentMethod: $savePaymentMethod,
+        offSession: $offSession,
+        billingAddress: $billingAddress,
     );
 }

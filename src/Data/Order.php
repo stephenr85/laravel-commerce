@@ -31,6 +31,10 @@ class Order extends Data implements SchemaIdentity
         public Money $total,
         public PurchaseKind $kind,
         public ?string $reference = null,
+        public ?string $paymentMethodRef = null,
+        public bool $savePaymentMethod = false,
+        public bool $offSession = false,
+        public ?BillingAddress $billingAddress = null,
     ) {}
 
     /**
@@ -43,6 +47,10 @@ class Order extends Data implements SchemaIdentity
         ?PurchaseKind $kind = null,
         ?string $currency = null,
         ?string $reference = null,
+        ?string $paymentMethodRef = null,
+        bool $savePaymentMethod = false,
+        bool $offSession = false,
+        ?BillingAddress $billingAddress = null,
     ): self {
         $currency ??= $lineItems[0]->amount->currency ?? config('commerce.currency', 'USD');
 
@@ -60,6 +68,10 @@ class Order extends Data implements SchemaIdentity
             total: $total,
             kind: $kind ?? self::defaultKindFor($cadence),
             reference: $reference,
+            paymentMethodRef: $paymentMethodRef,
+            savePaymentMethod: $savePaymentMethod,
+            offSession: $offSession,
+            billingAddress: $billingAddress,
         );
     }
 
