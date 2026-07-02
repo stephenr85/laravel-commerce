@@ -59,8 +59,11 @@ items, total, and cadence.
 _Avoid_: transaction, cart, checkout
 
 **LineItem**:
-One priced line within an Order (or a Bill), carrying its Money subtotal.
-_Avoid_: item, row
+One priced line within a checkout Order, carrying its Money subtotal (integer minor
+units). Cent-exact — it is what a Customer is charged. The sub-cent cost-metering line
+is a separate concept (see BillingLineItem); the two meet only at settlement, where the
+metered total rounds once into a chargeable Money amount (ADR-0002).
+_Avoid_: item, row, BillingLineItem
 
 **Money**:
 An immutable amount as minor units plus a currency.
@@ -70,11 +73,37 @@ _Avoid_: price, amount, cost
 Whether an Order recurs: `one_time` or `recurring`.
 _Avoid_: frequency, interval, term
 
+### Cost-of-goods metering
+
+The plane that sits beneath money-in: composing what a billing party owes from metered
+usage. Works in fractional USD because a unit of usage (a token, a generation) costs a
+fraction of a cent — so its amounts are not `Money` (see ADR-0002).
+
+**BillingLineItem**:
+One composed line on a cost-metering Bill, in fractional USD (`amountUsd`). Distinct from
+the cent-exact checkout LineItem: generation costs run sub-cent, so the metering line
+keeps six-decimal USD, not integer minor units. Rounds into a Money amount only at
+settlement (ADR-0002).
+_Avoid_: LineItem (the checkout line), price
+
+**BillingComponent**:
+One priced element of a Plan — computes a single BillingLineItem for a period from its
+config. The host binds whatever subject it needs (seats, tokens); the engine never names
+it.
+_Avoid_: fee, charge, meter
+
 ### Money-in lifecycle
 
 **Invoice**:
-A statement of what is owed, before payment. The platform's `Bill` projects into an Invoice.
+A statement of what is owed, before payment. The platform's `Bill` projects into an Invoice —
+preserving the Bill's fractional lines but carrying one chargeable Money total (rounded once, ADR-0002).
 _Avoid_: bill (Bill = the platform's internal cost-metering statement), statement
+
+**Settlement**:
+The record that an Invoice projected from a Bill was collected: it ties the originating Bill to the
+Invoice and the resulting Purchase (whose Payment carries provider state). Closing the loop from
+"computed as owed" to "charged" — the Bill stays authoritative; a Settlement never recomputes it.
+_Avoid_: payment (Payment = the money movement), reconciliation
 
 **Payment**:
 The fact that money moved for an Order — amount, time, status. Provider capture mechanics stay

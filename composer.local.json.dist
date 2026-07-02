@@ -1,0 +1,10 @@
+{
+    "//": "LOCAL CO-DEV OVERLAY — copy to composer.local.json (gitignored) to edit the sibling rushing/* packages live from the canonical root instead of cloning them from git. Then run `composer update \"rushing/*\"` to symlink them. To restore the shippable git-resolved lock: delete composer.local.json and run `composer update \"rushing/*\"` again. NEVER commit composer.local.json or a path-polluted composer.lock. Sibling packages live next to this one under packages/rushing/, hence the ../ paths.",
+    "repositories": {
+        "laravel-data-schemas": {
+            "type": "path",
+            "url": "../laravel-data-schemas",
+            "options": { "symlink": true }
+        }
+    }
+}

@@ -1,0 +1,48 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Rushing\Commerce;
+
+use Rushing\Commerce\Contracts\UsageMeter;
+use Rushing\Commerce\Models\CreditEntry;
+
+/**
+ * The Wallet read/write surface: top up a party's balance (a completed Purchase
+ * converts Money → Credit at a host-configured rate, then lands here) and read the
+ * credited total. `budgetSource()` presents the balance to the spend gate as a
+ * {@see Credit}. The unit is host-defined (tokens / generations / USD) and never
+ * forced to a currency.
+ */
+final class Wallets
+{
+    public function topUp(string $partyId, string $unit, float $amount, ?string $purchaseId = null, ?string $reason = null): CreditEntry
+    {
+        return CreditEntry::create([
+            'party_id' => $partyId,
+            'unit' => $unit,
+            'amount' => $amount,
+            'purchase_id' => $purchaseId,
+            'reason' => $reason,
+        ]);
+    }
+
+    public function creditedFor(string $partyId, string $unit): float
+    {
+        return (float) CreditEntry::query()
+            ->where('party_id', $partyId)
+            ->where('unit', $unit)
+            ->sum('amount');
+    }
+
+    public function budgetSource(string $partyId, string $unit, UsageMeter $meter, ?float $warnFraction = null): Credit
+    {
+        return new Credit(
+            partyId: $partyId,
+            unit: $unit,
+            credited: $this->creditedFor($partyId, $unit),
+            meter: $meter,
+            warnFraction: $warnFraction ?? (float) config('commerce.credit.warn_fraction', 0.8),
+        );
+    }
+}
