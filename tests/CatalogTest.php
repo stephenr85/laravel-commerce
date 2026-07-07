@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 use Rushing\Commerce\Data\Discount;
 use Rushing\Commerce\Data\Money;
 use Rushing\Commerce\Data\Offer;

@@ -1,13 +1,11 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Rushing\Commerce\Events;
 
 use Illuminate\Foundation\Events\Dispatchable;
 use Rushing\Commerce\Data\Refund;
 
-final class PaymentRefunded
+class PaymentRefunded
 {
     use Dispatchable;
 

@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Rushing\Commerce;
 
 use Illuminate\Support\Str;
@@ -20,7 +18,7 @@ use Rushing\Commerce\Enums\InvoiceStatus;
  * one-off Payment on the billing party's own account. The Bill stays the source of
  * truth for the math; this only projects and collects.
  */
-final class Settlements
+class Settlements
 {
     public function __construct(private MoneyIn $moneyIn) {}
 

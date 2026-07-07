@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Rushing\Commerce;
 
 use Rushing\Commerce\Contracts\UsageMeter;
@@ -14,7 +12,7 @@ use Rushing\Commerce\Models\CreditEntry;
  * {@see Credit}. The unit is host-defined (tokens / generations / USD) and never
  * forced to a currency.
  */
-final class Wallets
+class Wallets
 {
     public function topUp(string $partyId, string $unit, float $amount, ?string $purchaseId = null, ?string $reason = null): CreditEntry
     {

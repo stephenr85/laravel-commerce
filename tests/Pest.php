@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Rushing\Commerce\Data\BillingAddress;
 use Rushing\Commerce\Data\Customer;

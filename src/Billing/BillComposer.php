@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Rushing\Commerce\Billing;
 
 use Rushing\Commerce\Data\BillingLineItem;
@@ -13,7 +11,7 @@ use Rushing\Commerce\Data\ComposedBill;
  * subscription, whether to persist a Bill, tenancy) stays in the consumer — this
  * owns only the domain-agnostic compose-and-total math.
  */
-final class BillComposer
+class BillComposer
 {
     public function __construct(private ComponentRegistry $registry) {}
 

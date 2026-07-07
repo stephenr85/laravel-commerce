@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Rushing\Commerce\Billing\Pricing;
 
 use RuntimeException;
@@ -10,7 +8,7 @@ use RuntimeException;
  * Resolves Pricing Strategies by name. The seam is reserved for non-linear
  * strategies; only `linear` is registered at launch. A consumer registers its own.
  */
-final class PricingStrategyRegistry
+class PricingStrategyRegistry
 {
     /** @var array<string, PricingStrategy> */
     private array $strategies = [];

@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Rushing\Commerce\Stripe;
 
 use RuntimeException;
@@ -15,7 +13,7 @@ use Stripe\StripeClient;
  * `TenantConfig` (`services.stripe.secret`), so the account used is the Merchant's,
  * never the platform's.
  */
-final class ConfigStripeClients implements StripeClientFactory
+class ConfigStripeClients implements StripeClientFactory
 {
     public function for(Merchant $merchant): StripeClient
     {

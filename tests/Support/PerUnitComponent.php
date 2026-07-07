@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Rushing\Commerce\Tests\Support;
 
 use Rushing\Commerce\Billing\BillingPeriod;
@@ -13,7 +11,7 @@ use Rushing\Commerce\Data\BillingLineItem;
  * A metered test component priced through a {@see PricingStrategyRegistry} — proves
  * the pricing seam composes without any host meter vocabulary in the engine.
  */
-final class PerUnitComponent implements BillingComponent
+class PerUnitComponent implements BillingComponent
 {
     public function __construct(private PricingStrategyRegistry $strategies) {}
 

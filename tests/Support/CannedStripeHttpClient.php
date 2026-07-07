@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Rushing\Commerce\Tests\Support;
 
 use Stripe\HttpClient\ClientInterface;
@@ -11,7 +9,7 @@ use Stripe\HttpClient\ClientInterface;
  * driver touches, so the real Stripe SDK object graph (and our mapping of it) runs
  * with no network and no live keys. Installed globally via ApiRequestor::setHttpClient.
  */
-final class CannedStripeHttpClient implements ClientInterface
+class CannedStripeHttpClient implements ClientInterface
 {
     /** @var array<int, array{method: string, url: string, params: array}> */
     public array $requests = [];

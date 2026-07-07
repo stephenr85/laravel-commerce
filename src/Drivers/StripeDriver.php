@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Rushing\Commerce\Drivers;
 
 use Illuminate\Support\Str;
@@ -27,7 +25,7 @@ use Stripe\PaymentIntent;
  * normalize the outcome into our neutral DTOs (ADR-0001) — the same records and
  * events the fake driver produces, so a feature test can drive either mode.
  */
-final class StripeDriver implements MoneyInDriver
+class StripeDriver implements MoneyInDriver
 {
     public function __construct(
         private StripeClientFactory $clients,

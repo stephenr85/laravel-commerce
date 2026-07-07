@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Rushing\Commerce\Drivers;
 
 use Illuminate\Support\Str;
@@ -16,7 +14,7 @@ use Rushing\Commerce\Enums\PaymentStatus;
  * deterministic path for seeders and feature tests. It is the single new test seam
  * the rest of the engine reuses.
  */
-final class FakeDriver implements MoneyInDriver
+class FakeDriver implements MoneyInDriver
 {
     public function name(): string
     {

@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Rushing\Commerce\Tests\Support;
 
 use Rushing\Commerce\Contracts\CustomerVault;
@@ -16,7 +14,7 @@ use Rushing\Commerce\Data\VaultedPaymentMethod;
  * references and records what it was asked to do, so the driver's use of the seam can
  * be asserted with no provider and no live keys.
  */
-final class RecordingCustomerVault implements CustomerVault
+class RecordingCustomerVault implements CustomerVault
 {
     public ?Customer $resolvedCustomer = null;
 

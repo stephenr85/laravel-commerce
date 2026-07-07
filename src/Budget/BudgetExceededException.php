@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Rushing\Commerce\Budget;
 
 use RuntimeException;
@@ -12,9 +10,9 @@ use Rushing\Commerce\Data\BudgetVerdict;
  * {@see BudgetVerdict} a client would inspect, so the deny body has one source of
  * truth wherever the gate was crossed.
  */
-final class BudgetExceededException extends RuntimeException
+class BudgetExceededException extends RuntimeException
 {
-    public function __construct(public readonly BudgetVerdict $verdict)
+    public function __construct(public BudgetVerdict $verdict)
     {
         parent::__construct('The spending cap for this billing period has been reached.');
     }

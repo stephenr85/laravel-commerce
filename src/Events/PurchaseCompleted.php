@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Rushing\Commerce\Events;
 
 use Illuminate\Foundation\Events\Dispatchable;
@@ -12,7 +10,7 @@ use Rushing\Commerce\Data\Purchase;
  * the Purchase onto its own access model (Entitlement/Grant) — the engine never
  * knows what the Purchase grants.
  */
-final class PurchaseCompleted
+class PurchaseCompleted
 {
     use Dispatchable;
 

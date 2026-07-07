@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 use Rushing\Commerce\Billing\BillComposer;
 use Rushing\Commerce\Billing\BillingPeriod;
 use Rushing\Commerce\Billing\ComponentRegistry;

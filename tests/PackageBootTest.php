@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 use Laravel\Cashier\Cashier;
 use Rushing\Commerce\Contracts\CustomerVault;
 use Rushing\Commerce\Drivers\StripeDriver;

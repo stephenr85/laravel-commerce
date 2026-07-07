@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Rushing\Commerce;
 
 use Illuminate\Support\Str;
@@ -20,7 +18,7 @@ use Rushing\Commerce\Events\PurchaseCompleted;
  * behind the driver seam; this service only composes the neutral records and
  * fires the host-facing events.
  */
-final class MoneyIn
+class MoneyIn
 {
     public function __construct(private MoneyInManager $manager) {}
 

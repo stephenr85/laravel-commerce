@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Rushing\Commerce\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;

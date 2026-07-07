@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Rushing\Commerce\Budget;
 
 /**
@@ -11,12 +9,12 @@ namespace Rushing\Commerce\Budget;
  * null cap means uncapped. Amounts are unit-agnostic (USD, tokens, generations) —
  * cap and spend just have to share a unit.
  */
-final class BudgetAssessment
+class BudgetAssessment
 {
     public function __construct(
-        public readonly ?float $cap,
-        public readonly float $spend,
-        public readonly float $warnFraction,
+        public ?float $cap,
+        public float $spend,
+        public float $warnFraction,
     ) {}
 
     public function uncapped(): bool

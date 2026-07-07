@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Rushing\Commerce;
 
 use Illuminate\Support\Carbon;
@@ -22,7 +20,7 @@ use Rushing\Commerce\Models\Redemption;
  * is via events — the host reacts; the engine never knows what a redemption grants.
  * Any Purchase gifts the same way, including a Credit pack (no special form).
  */
-final class Gifts
+class Gifts
 {
     public function __construct(private MoneyIn $moneyIn) {}
 

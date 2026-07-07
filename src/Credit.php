@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Rushing\Commerce;
 
 use Rushing\Commerce\Budget\BudgetAssessment;
@@ -16,7 +14,7 @@ use Rushing\Commerce\Contracts\UsageMeter;
  * (the Wallet ledger); debited is read from the host's usage ledger through a
  * {@see UsageMeter}. Balance = credited − debited.
  */
-final class Credit implements BudgetSource
+class Credit implements BudgetSource
 {
     public function __construct(
         private string $partyId,

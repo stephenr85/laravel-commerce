@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 use Rushing\Commerce\Data\BillingAddress;
 use Rushing\Commerce\Data\Invoice;
 use Rushing\Commerce\Data\Merchant;

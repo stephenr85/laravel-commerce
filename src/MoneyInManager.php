@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Rushing\Commerce;
 
 use Illuminate\Support\Manager;
@@ -15,7 +13,7 @@ use Rushing\Commerce\Drivers\StripeDriver;
  * from the container so their seams (client factory, merchant resolver, optional
  * subscription binder) are host-overridable.
  */
-final class MoneyInManager extends Manager
+class MoneyInManager extends Manager
 {
     public function getDefaultDriver(): string
     {

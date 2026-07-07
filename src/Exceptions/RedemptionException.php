@@ -1,12 +1,10 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Rushing\Commerce\Exceptions;
 
 use RuntimeException;
 
-final class RedemptionException extends RuntimeException
+class RedemptionException extends RuntimeException
 {
     public static function unknownCode(string $code): self
     {

@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Rushing\Commerce\Budget;
 
 use Rushing\Commerce\Data\BudgetVerdict;
@@ -13,7 +11,7 @@ use Rushing\Commerce\Data\BudgetVerdict;
  * spend outside any billing context — is uncapped. The stop is hard; the warn
  * threshold is a heads-up, never a soft-queue.
  */
-final class BudgetGate
+class BudgetGate
 {
     public function allows(?BudgetSource $source): bool
     {

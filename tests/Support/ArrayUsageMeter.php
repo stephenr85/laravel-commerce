@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Rushing\Commerce\Tests\Support;
 
 use Rushing\Commerce\Contracts\UsageMeter;
@@ -10,7 +8,7 @@ use Rushing\Commerce\Contracts\UsageMeter;
  * A stand-in for a host's usage ledger — the debit side the package does not own.
  * Tests set how much a party has consumed; the Wallet reads it through this seam.
  */
-final class ArrayUsageMeter implements UsageMeter
+class ArrayUsageMeter implements UsageMeter
 {
     /** @var array<string, float> */
     private array $debits = [];

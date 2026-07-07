@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Rushing\Commerce\Billing;
 
 use Carbon\Carbon;
@@ -11,9 +9,9 @@ use InvalidArgumentException;
  * A calendar month (YYYY-MM) as a billing window value object. Domain-agnostic —
  * the composition loop and any metering read against its start/end dates.
  */
-final class BillingPeriod
+class BillingPeriod
 {
-    private function __construct(private readonly string $value) {}
+    private function __construct(private string $value) {}
 
     public static function fromString(string $value): self
     {

@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Event;
 use Rushing\Commerce\Data\Beneficiary;

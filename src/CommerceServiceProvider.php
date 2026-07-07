@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Rushing\Commerce;
 
 use Illuminate\Support\ServiceProvider;
@@ -19,7 +17,7 @@ use Rushing\Commerce\Stripe\ConfigStripeClients;
  * service) is bound as singletons; it is independent of any payment rail, so the
  * metering plane is usable with Cashier absent (a cost-only tenant like thingson.tv).
  */
-final class CommerceServiceProvider extends ServiceProvider
+class CommerceServiceProvider extends ServiceProvider
 {
     public function register(): void
     {

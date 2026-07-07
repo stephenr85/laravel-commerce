@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Rushing\Commerce\Billing;
 
 use RuntimeException;
@@ -12,7 +10,7 @@ use Rushing\Commerce\Billing\Contracts\BillingComponent;
  * empty; each host registers its own concrete components (the platform's
  * `PerSeatFees` etc.), so no host vocabulary is hardcoded in the engine.
  */
-final class ComponentRegistry
+class ComponentRegistry
 {
     /** @var array<string, callable():BillingComponent> */
     private array $factories = [];

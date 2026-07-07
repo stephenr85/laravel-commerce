@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Rushing\Commerce\Tests\Support;
 
 use Illuminate\Support\Str;
@@ -16,7 +14,7 @@ use Rushing\Commerce\Enums\PaymentStatus;
  * succeeded term Payment, so the driver's recurring route is exercised without a
  * Billable model or a live subscription.
  */
-final class RecordingSubscriptionBinder implements SubscriptionBinder
+class RecordingSubscriptionBinder implements SubscriptionBinder
 {
     public ?Order $boundOrder = null;
 

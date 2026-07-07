@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Rushing\Commerce\Stripe;
 
 use Rushing\Commerce\Contracts\MerchantResolver;
@@ -15,7 +13,7 @@ use Rushing\Commerce\Data\Payment;
  * (the satellite layer) replaces this with a resolver that returns the billing
  * party `parent_tenant_id ?? self`.
  */
-final class ConfigMerchantResolver implements MerchantResolver
+class ConfigMerchantResolver implements MerchantResolver
 {
     public function forOrder(Order $order): Merchant
     {
