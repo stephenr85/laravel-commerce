@@ -30,6 +30,12 @@ return [
         'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
         'merchant_id' => env('COMMERCE_MERCHANT_ID', 'default'),
         'merchant_name' => env('COMMERCE_MERCHANT_NAME'),
+
+        // The app-local path the `commerce:stripe-listen` dev command forwards Stripe
+        // webhooks to (joined onto app.url). Defaults to Cashier's conventional path;
+        // override if a consumer mounts its webhook elsewhere. This keeps the command
+        // Cashier-agnostic — it never reads cashier.* config.
+        'webhook_path' => env('STRIPE_WEBHOOK_PATH', 'stripe/webhook'),
     ],
 
     /*

@@ -57,6 +57,10 @@ class CommerceServiceProvider extends ServiceProvider
             $this->publishes([
                 __DIR__.'/../database/migrations' => $this->app->databasePath('migrations'),
             ], 'commerce-migrations');
+
+            $this->commands([
+                Console\StripeListenCommand::class,
+            ]);
         }
     }
 }
