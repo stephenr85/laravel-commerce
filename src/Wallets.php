@@ -25,6 +25,21 @@ class Wallets
         ]);
     }
 
+    /**
+     * Top up once for a given idempotency reason: a no-op returning null when a CreditEntry
+     * with that reason already exists for the party. The reason (not purchase_id, a UUID FK)
+     * carries the provider ref so redelivered provider events credit exactly once.
+     */
+    public function topUpOnce(string $partyId, string $unit, float $amount, string $reason): ?CreditEntry
+    {
+        $exists = CreditEntry::query()
+            ->where('party_id', $partyId)
+            ->where('reason', $reason)
+            ->exists();
+
+        return $exists ? null : $this->topUp($partyId, $unit, $amount, null, $reason);
+    }
+
     public function creditedFor(string $partyId, string $unit): float
     {
         return (float) CreditEntry::query()

@@ -2,6 +2,7 @@
 
 namespace Rushing\Commerce;
 
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Rushing\Commerce\Billing\BillComposer;
 use Rushing\Commerce\Billing\ComponentRegistry;
@@ -48,6 +49,11 @@ class CommerceServiceProvider extends ServiceProvider
         if (config('commerce.register_migrations', true)) {
             $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
         }
+
+        // Engine-owned wallet funding: a Credit-topup Purchase funds the beneficiary's Wallet,
+        // so every host gets top-up funding without wiring its own listener (the Stripe driver
+        // only translates the provider event into the Purchase).
+        Event::listen(Events\PurchaseCompleted::class, Listeners\FundWalletFromCreditTopup::class);
 
         if ($this->app->runningInConsole()) {
             $this->publishes([

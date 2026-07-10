@@ -98,5 +98,9 @@ return [
     */
     'credit' => [
         'warn_fraction' => env('COMMERCE_CREDIT_WARN_FRACTION', 0.8),
+        // The Wallet unit engine-owned credit-topup funding credits in. Currency units
+        // fund in major units (minor/100); a host with a non-currency unit (tokens) sets
+        // this and applies its own rate.
+        'unit' => env('COMMERCE_CREDIT_UNIT', 'usd'),
     ],
 ];
