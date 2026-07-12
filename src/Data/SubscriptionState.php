@@ -4,7 +4,7 @@ namespace Rushing\Commerce\Data;
 
 use Rushing\Commerce\Contracts\SubscriptionBinder;
 use Rushing\Commerce\Contracts\SubscriptionProjector;
-use Rushing\LaravelDataSchemas\Contracts\SchemaIdentity;
+use Schemastud\DataSchemas\Contracts\SchemaIdentity;
 use Spatie\LaravelData\Data;
 
 /**

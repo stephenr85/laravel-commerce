@@ -5,7 +5,7 @@ namespace Rushing\Commerce\Data;
 use Rushing\Commerce\Billing\BillComposer;
 use Rushing\Commerce\Billing\BillingPeriod;
 use Rushing\Commerce\Billing\Contracts\BillingComponent;
-use Rushing\LaravelDataSchemas\Contracts\SchemaIdentity;
+use Schemastud\DataSchemas\Contracts\SchemaIdentity;
 use Spatie\LaravelData\Data;
 
 /**

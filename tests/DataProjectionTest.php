@@ -12,7 +12,7 @@ use Rushing\Commerce\Data\SetupTicket;
 use Rushing\Commerce\Data\VaultedCustomer;
 use Rushing\Commerce\Data\VaultedPaymentMethod;
 use Rushing\Commerce\Enums\PaymentStatus;
-use Rushing\LaravelDataSchemas\Contracts\SchemaIdentity;
+use Schemastud\DataSchemas\Contracts\SchemaIdentity;
 use Spatie\LaravelData\Data;
 
 it('exposes the neutral records as laravel-data with a schema identity', function (string $class) {

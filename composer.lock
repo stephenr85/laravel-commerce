@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "7216ac3d1c461e811b030f76535a13a7",
+    "content-hash": "847dfa65d48a49cee02699a82586c40c",
     "packages": [
         {
             "name": "brick/math",
@@ -3560,81 +3560,12 @@
             "time": "2026-06-18T03:57:49+00:00"
         },
         {
-            "name": "rushing/laravel-data-schemas",
-            "version": "dev-main",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/stephenr85/laravel-data-schemas.git",
-                "reference": "dc280a0c029d48d6e9af0dd1996423364135a09f"
-            },
-            "require": {
-                "illuminate/console": "^11.0|^12.0|^13.0",
-                "illuminate/support": "^11.0|^12.0|^13.0",
-                "opis/json-schema": "^2.3",
-                "php": "^8.2",
-                "rushing/laravel-popcorn": "dev-main",
-                "spatie/laravel-data": "^4.0|^5.0",
-                "symfony/finder": "^6.0|^7.0|^8.0"
-            },
-            "require-dev": {
-                "laravel/pint": "^1.0",
-                "orchestra/testbench": "^9.0|^10.0|^11.0",
-                "phpunit/phpunit": "^11.0|^12.0"
-            },
-            "default-branch": true,
-            "type": "library",
-            "extra": {
-                "laravel": {
-                    "providers": [
-                        "Rushing\\LaravelDataSchemas\\LaravelDataSchemasServiceProvider"
-                    ]
-                },
-                "branch-alias": {
-                    "dev-main": "1.0.x-dev"
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Rushing\\LaravelDataSchemas\\": "src/"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Rushing\\LaravelDataSchemas\\Tests\\": "tests/"
-                }
-            },
-            "scripts": {
-                "pint": [
-                    "@php -d memory_limit=512M vendor/bin/pint"
-                ]
-            },
-            "license": [
-                "MIT"
-            ],
-            "authors": [
-                {
-                    "name": "Stephen Rushing",
-                    "email": "stephen@rushing.dev"
-                }
-            ],
-            "description": "Generate JSON Schemas from Laravel Data objects with validation attributes",
-            "keywords": [
-                "json-schema",
-                "laravel",
-                "laravel-data",
-                "schema-generation",
-                "spatie",
-                "validation"
-            ],
-            "time": "2026-06-30T23:50:34+00:00"
-        },
-        {
             "name": "rushing/laravel-popcorn",
             "version": "dev-main",
             "source": {
                 "type": "git",
                 "url": "https://github.com/stephenr85/laravel-popcorn.git",
-                "reference": "d5f4856323f2a7d8190c65b19a63fe45ada32f1a"
+                "reference": "0fb8d57e21faddc432c0036ab7f493e59c354c0f"
             },
             "require": {
                 "illuminate/contracts": "^11.0|^12.0|^13.0",
@@ -3688,7 +3619,76 @@
                 "registry",
                 "strategy"
             ],
-            "time": "2026-06-30T23:50:35+00:00"
+            "time": "2026-07-07T16:27:04+00:00"
+        },
+        {
+            "name": "schemastud/laravel-data-schemas",
+            "version": "dev-main",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/schemastud/laravel-data-schemas.git",
+                "reference": "04962eabbf6ff90435ce5ae4fd84561d0471fc79"
+            },
+            "require": {
+                "illuminate/console": "^11.0|^12.0|^13.0",
+                "illuminate/support": "^11.0|^12.0|^13.0",
+                "opis/json-schema": "^2.3",
+                "php": "^8.2",
+                "rushing/laravel-popcorn": "dev-main",
+                "spatie/laravel-data": "^4.0|^5.0",
+                "symfony/finder": "^6.0|^7.0|^8.0"
+            },
+            "require-dev": {
+                "laravel/pint": "^1.0",
+                "orchestra/testbench": "^9.0|^10.0|^11.0",
+                "phpunit/phpunit": "^11.0|^12.0"
+            },
+            "default-branch": true,
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Schemastud\\DataSchemas\\LaravelDataSchemasServiceProvider"
+                    ]
+                },
+                "branch-alias": {
+                    "dev-main": "1.0.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Schemastud\\DataSchemas\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Schemastud\\DataSchemas\\Tests\\": "tests/"
+                }
+            },
+            "scripts": {
+                "pint": [
+                    "@php -d memory_limit=512M vendor/bin/pint"
+                ]
+            },
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Stephen Rushing",
+                    "email": "stephen@rushing.dev"
+                }
+            ],
+            "description": "Generate JSON Schemas from Laravel Data objects with validation attributes",
+            "keywords": [
+                "json-schema",
+                "laravel",
+                "laravel-data",
+                "schema-generation",
+                "spatie",
+                "validation"
+            ],
+            "time": "2026-07-12T18:41:06+00:00"
         },
         {
             "name": "spatie/laravel-data",
@@ -10473,7 +10473,7 @@
     "aliases": [],
     "minimum-stability": "dev",
     "stability-flags": {
-        "rushing/laravel-data-schemas": 20
+        "schemastud/laravel-data-schemas": 20
     },
     "prefer-stable": true,
     "prefer-lowest": false,

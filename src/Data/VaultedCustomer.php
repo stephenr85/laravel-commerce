@@ -2,7 +2,7 @@
 
 namespace Rushing\Commerce\Data;
 
-use Rushing\LaravelDataSchemas\Contracts\SchemaIdentity;
+use Schemastud\DataSchemas\Contracts\SchemaIdentity;
 use Spatie\LaravelData\Data;
 
 /**

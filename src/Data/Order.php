@@ -5,7 +5,7 @@ namespace Rushing\Commerce\Data;
 use Illuminate\Support\Str;
 use Rushing\Commerce\Enums\Cadence;
 use Rushing\Commerce\Enums\PurchaseKind;
-use Rushing\LaravelDataSchemas\Contracts\SchemaIdentity;
+use Schemastud\DataSchemas\Contracts\SchemaIdentity;
 use Spatie\LaravelData\Attributes\DataCollectionOf;
 use Spatie\LaravelData\Data;
 
