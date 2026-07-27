@@ -72,6 +72,8 @@ return [
     'table_names' => [
         'redemptions' => 'commerce_redemptions',
         'credit_entries' => 'commerce_credit_entries',
+        'auto_reload_configs' => 'commerce_auto_reload_configs',
+        'auto_reload_attempts' => 'commerce_auto_reload_attempts',
     ],
 
     /*
@@ -102,5 +104,34 @@ return [
         // fund in major units (minor/100); a host with a non-currency unit (tokens) sets
         // this and applies its own rate.
         'unit' => env('COMMERCE_CREDIT_UNIT', 'usd'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Auto-reload
+    |--------------------------------------------------------------------------
+    |
+    | Off-session prepaid-credit top-up: when a party's Wallet balance drops below
+    | a configured floor, the engine tops it up behind the money-in driver with no
+    | user present. `defaults` fill an unset tenant value; `policy` is the hard
+    | safety clamp a tenant value can never weaken — effective = clamp(config,
+    | policy) — the runaway defense for autonomous off-session money movement.
+    |
+    */
+    'autoreload' => [
+        'defaults' => [
+            'amount_mode' => 'fixed',
+            'cooldown_seconds' => 300,
+            'period_days' => 30,
+        ],
+        'policy' => [
+            'min_cooldown_seconds' => 60,
+            'max_spend_ceiling_usd' => 500,
+            'max_reloads_ceiling' => 30,
+            'max_per_reload_ceiling_usd' => 200,
+            // Consecutive instrument-declines before the engine auto-disables a config
+            // (non-tunable — a failure backstop, not a tenant knob).
+            'disable_after_consecutive_failures' => 3,
+        ],
     ],
 ];

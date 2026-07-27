@@ -28,6 +28,7 @@ class CommerceServiceProvider extends ServiceProvider
         $this->app->singleton(MoneyIn::class);
         $this->app->singleton(Gifts::class);
         $this->app->singleton(Wallets::class);
+        $this->app->singleton(AutoReload::class);
         $this->app->singleton(Settlements::class);
         $this->app->singleton(BudgetGate::class);
 
