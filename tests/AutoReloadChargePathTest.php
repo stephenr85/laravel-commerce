@@ -173,3 +173,20 @@ it('normalizes an off-session authentication_required into a RequiresAction Paym
     expect($purchase->payment->status)->toBe(PaymentStatus::RequiresAction)
         ->and($purchase->payment->errorCode)->toBe('authentication_required');
 });
+
+it('does not complete a purchase (no wallet credit) when the off-session charge is declined', function () {
+    FakeDriver::fakeDecline('insufficient_funds');
+
+    $order = Order::for(
+        customer: new Customer(id: 'tenant-x', name: 'Ada', email: 'ada@example.test'),
+        lineItems: [LineItem::for('Auto-reload', Money::of(2500))],
+        kind: PurchaseKind::CreditTopup,
+        reference: 'autoreload:tenant-x:usd:9000',
+        offSession: true,
+    );
+
+    $purchase = app(MoneyIn::class)->place($order, 'fake', 'tenant-x');
+
+    expect($purchase->payment->succeeded())->toBeFalse()
+        ->and(app(Wallets::class)->creditedFor('tenant-x', 'usd'))->toBe(0.0);
+});

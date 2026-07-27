@@ -42,7 +42,12 @@ class MoneyIn
             beneficiaryId: $beneficiaryId,
         );
 
-        PurchaseCompleted::dispatch($purchase);
+        // Only a captured payment completes a purchase — a decline or an unresolved
+        // step-up (an off-session card that failed or needs authentication) must never
+        // fund a Wallet. The caller inspects the returned Purchase's payment status.
+        if ($payment->succeeded()) {
+            PurchaseCompleted::dispatch($purchase);
+        }
 
         return $purchase;
     }
