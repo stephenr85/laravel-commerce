@@ -8,6 +8,7 @@ use Rushing\Commerce\Contracts\PaymentMethodResolver;
 use Rushing\Commerce\Contracts\UsageMeter;
 use Rushing\Commerce\Data\EffectiveAutoReloadConfig;
 use Rushing\Commerce\Data\ReloadDecision;
+use Rushing\Commerce\Enums\AutoReloadOutcome;
 use Rushing\Commerce\Models\AutoReloadAttempt;
 use Rushing\Commerce\Models\AutoReloadConfig;
 
@@ -193,6 +194,86 @@ class AutoReload
         }
 
         return ReloadDecision::charge($amount, $reason);
+    }
+
+    /**
+     * Record one attempt (success and failure alike) and apply the failure lifecycle
+     * — the single engine-owned source behind the config's counters, a host's history
+     * surface, notifications, and alerts. Only an instrument Declined bumps the
+     * consecutive-failure counter (auto-disabling at the policy threshold as
+     * repeated_failure); ScaRequired disables on the first occurrence; a success resets
+     * the counter (and clears a stale disabled_reason); TransientError and Blocked touch
+     * no counter. Auto-reload is additive — this never restricts generation, it only
+     * degrades the config's own firing.
+     */
+    public function recordAttempt(
+        string $party,
+        string $unit,
+        string $reason,
+        AutoReloadOutcome $outcome,
+        ?float $amount = null,
+        ?string $providerRef = null,
+        ?string $errorCode = null,
+    ): AutoReloadAttempt {
+        $config = AutoReloadConfig::query()
+            ->where('party_id', $party)
+            ->where('unit', $unit)
+            ->first();
+
+        $threshold = (int) config('commerce.autoreload.policy.disable_after_consecutive_failures', 3);
+        $counter = $config?->consecutive_failures ?? 0;
+        $causedDisable = false;
+
+        switch ($outcome) {
+            case AutoReloadOutcome::Succeeded:
+                $counter = 0;
+                if ($config !== null) {
+                    $config->consecutive_failures = 0;
+                    $config->disabled_reason = null; // reset-on-success re-arms a working card
+                    $config->save();
+                }
+                break;
+
+            case AutoReloadOutcome::Declined:
+                $counter++;
+                if ($config !== null) {
+                    $config->consecutive_failures = $counter;
+                    if ($counter >= $threshold) {
+                        $config->disabled_reason = 'repeated_failure';
+                        $causedDisable = true;
+                    }
+                    $config->save();
+                }
+                break;
+
+            case AutoReloadOutcome::ScaRequired:
+                $counter++; // snapshot; SCA disables on the first occurrence regardless
+                if ($config !== null) {
+                    $config->consecutive_failures = $counter;
+                    $config->disabled_reason = 'sca_required';
+                    $config->save();
+                    $causedDisable = true;
+                }
+                break;
+
+            case AutoReloadOutcome::TransientError:
+            case AutoReloadOutcome::Blocked:
+                // Not an instrument failure — audited, but no counter change, no disable.
+                break;
+        }
+
+        return AutoReloadAttempt::create([
+            'party_id' => $party,
+            'unit' => $unit,
+            'reason' => $reason,
+            'outcome' => $outcome->value,
+            'stripe_error_code' => $errorCode,
+            'amount_usd' => $amount,
+            'provider_ref' => $providerRef,
+            'consecutive_failures_after' => $counter,
+            'caused_disable' => $causedDisable,
+            'created_at' => Carbon::now(),
+        ]);
     }
 
     /**
