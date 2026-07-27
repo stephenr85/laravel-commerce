@@ -2,8 +2,13 @@
 
 namespace Rushing\Commerce;
 
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Rushing\Commerce\Contracts\PaymentMethodResolver;
+use Rushing\Commerce\Contracts\UsageMeter;
 use Rushing\Commerce\Data\EffectiveAutoReloadConfig;
+use Rushing\Commerce\Data\ReloadDecision;
+use Rushing\Commerce\Models\AutoReloadAttempt;
 use Rushing\Commerce\Models\AutoReloadConfig;
 
 /**
@@ -20,7 +25,11 @@ use Rushing\Commerce\Models\AutoReloadConfig;
  */
 class AutoReload
 {
-    public function __construct(private ?PaymentMethodResolver $resolver = null) {}
+    public function __construct(
+        private ?PaymentMethodResolver $resolver = null,
+        private ?UsageMeter $meter = null,
+        private ?Wallets $wallets = null,
+    ) {}
 
     /**
      * Upsert a party's config for a unit. Only the supplied attributes are written,
@@ -123,5 +132,115 @@ class AutoReload
             disabledReason: $config->disabled_reason,
             consecutiveFailures: $config->consecutive_failures,
         );
+    }
+
+    /**
+     * The load-bearing money decision: given a party's live balance, effective config,
+     * and the autoreload: attempt ledger, decide whether to top up now and by how much.
+     * Threshold, cooldown, the period ceilings, and the amount (fixed vs to_target) are
+     * all computed *here* so an orchestrator never re-derives dollar math — it locks and
+     * charges under the returned reason. A guardrail stop returns shouldReload=false with
+     * the reason for the block (no charge attempted).
+     */
+    public function shouldReload(string $party, string $unit): ReloadDecision
+    {
+        $config = $this->effectiveConfig($party, $unit);
+        $reason = $this->reasonFor($party, $unit, $config?->cooldownSeconds ?? 300);
+
+        // A disabled config (tenant intent off) or a terminally-suspended one
+        // (disabled_reason set — repeated_failure / sca_required / no card) does not fire.
+        if ($config === null || ! $config->enabled || $config->disabledReason !== null) {
+            return ReloadDecision::blocked('disabled', $reason);
+        }
+
+        $balance = $this->balanceFor($party, $unit);
+
+        // Absolute floor: only reload at or below the configured threshold.
+        if ($balance > $config->thresholdUsd) {
+            return ReloadDecision::blocked('above_threshold', $reason);
+        }
+
+        // Cooldown: a succeeded reload already landed in this window bucket.
+        if ($this->succeededInWindow($party, $unit, $reason)) {
+            return ReloadDecision::blocked('cooldown', $reason);
+        }
+
+        $periodStart = Carbon::now()->subDays($config->periodDays);
+        $succeeded = $this->succeededAttemptsSince($party, $unit, $periodStart);
+
+        // Per-period reload count ceiling.
+        if ($succeeded->count() >= $config->maxReloadsPerPeriod) {
+            return ReloadDecision::blocked('period_count', $reason);
+        }
+
+        // Amount: fixed charges the configured amount; to_target tops up to the target
+        // from the *current* balance; both clamp to the effective per-reload cap.
+        $amount = $config->amountMode === 'to_target'
+            ? max(0.0, ($config->targetUsd ?? 0.0) - $balance)
+            : ($config->reloadAmountUsd ?? 0.0);
+
+        $amount = min($amount, $config->maxPerReloadUsd);
+
+        // A non-positive charge (misconfigured amount, or already at target) can't top up.
+        if ($amount <= 0.0) {
+            return ReloadDecision::blocked('per_reload', $reason);
+        }
+
+        // Per-period spend ceiling — the running spend plus this charge must fit.
+        $periodSpend = (float) $succeeded->sum('amount_usd');
+        if ($periodSpend + $amount > $config->maxSpendPerPeriodUsd) {
+            return ReloadDecision::blocked('period_spend', $reason);
+        }
+
+        return ReloadDecision::charge($amount, $reason);
+    }
+
+    /**
+     * The reload reason for the current cooldown window: autoreload:{party}:{unit}:{window}
+     * where {window} is a floored epoch bucket of cooldown_seconds. Two calls inside one
+     * window compute the same reason — the dedup-lock key, the topUpOnce/idempotency seed,
+     * and the guardrail-ledger scan key, all in one string. Never persisted.
+     */
+    public function reasonFor(string $party, string $unit, int $cooldownSeconds): string
+    {
+        $cooldownSeconds = max(1, $cooldownSeconds);
+        $window = intdiv(Carbon::now()->getTimestamp(), $cooldownSeconds);
+
+        return "autoreload:{$party}:{$unit}:{$window}";
+    }
+
+    private function balanceFor(string $party, string $unit): float
+    {
+        $wallets = $this->wallets ?? new Wallets;
+        $credited = $wallets->creditedFor($party, $unit);
+        $debited = $this->meter?->debitedFor($party, $unit) ?? 0.0;
+
+        return $credited - $debited;
+    }
+
+    private function succeededInWindow(string $party, string $unit, string $reason): bool
+    {
+        return AutoReloadAttempt::query()
+            ->where('party_id', $party)
+            ->where('unit', $unit)
+            ->where('reason', $reason)
+            ->where('outcome', 'succeeded')
+            ->exists();
+    }
+
+    /**
+     * The party's succeeded auto-reload attempts within the rolling period, hydrated
+     * once so the count and spend ceilings share a single query.
+     *
+     * @return Collection<int, AutoReloadAttempt>
+     */
+    private function succeededAttemptsSince(string $party, string $unit, Carbon $since): Collection
+    {
+        return AutoReloadAttempt::query()
+            ->where('party_id', $party)
+            ->where('unit', $unit)
+            ->where('outcome', 'succeeded')
+            ->where('created_at', '>=', $since)
+            ->get();
     }
 }
