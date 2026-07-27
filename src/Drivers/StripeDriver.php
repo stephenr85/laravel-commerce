@@ -16,6 +16,7 @@ use Rushing\Commerce\Data\Payment;
 use Rushing\Commerce\Data\Refund;
 use Rushing\Commerce\Enums\Cadence;
 use Rushing\Commerce\Enums\PaymentStatus;
+use Stripe\Exception\CardException;
 use Stripe\PaymentIntent;
 
 /**
@@ -47,9 +48,20 @@ class StripeDriver implements MoneyInDriver
             return $this->subscribe($order, $merchant);
         }
 
-        $intent = $this->clients->for($merchant)->paymentIntents->create(
-            $this->intentParams($order, $merchant)
-        );
+        // An off-session confirm can hard-decline (card_declined family) or demand a
+        // step-up (authentication_required, surfaced by error_on_requires_action): Stripe
+        // raises a CardException. Normalize it into a neutral non-success Payment carrying
+        // the code so a host classifies the failure without a Stripe type. Transient
+        // (network / rate_limit / 5xx) exceptions are NOT caught — they propagate so an
+        // orchestrating queue can retry the same idempotency key safely.
+        try {
+            $intent = $this->clients->for($merchant)->paymentIntents->create(
+                $this->intentParams($order, $merchant),
+                $this->intentOptions($order),
+            );
+        } catch (CardException $e) {
+            return $this->failedPayment($order, $merchant, $e);
+        }
 
         return new Payment(
             id: (string) Str::uuid(),
@@ -59,6 +71,36 @@ class StripeDriver implements MoneyInDriver
             driver: $this->name(),
             providerRef: $intent->id,
             merchantId: $merchant->id,
+        );
+    }
+
+    /**
+     * Normalize a declined/step-up off-session charge into a neutral Payment. An
+     * authentication_required outcome is RequiresAction (a live step-up could still
+     * clear it); every other card error is a hard Failed. The code (decline_code
+     * when Stripe gives one, else the error code) rides for host classification, and
+     * the PaymentIntent id — if the error carries one — for the audit trail.
+     */
+    private function failedPayment(Order $order, Merchant $merchant, CardException $e): Payment
+    {
+        $error = $e->getError();
+        $code = $error->decline_code ?? $error->code ?? 'card_error';
+
+        $status = ($error->code ?? null) === 'authentication_required'
+            ? PaymentStatus::RequiresAction
+            : PaymentStatus::Failed;
+
+        $intent = $error->payment_intent ?? null;
+
+        return new Payment(
+            id: (string) Str::uuid(),
+            orderId: $order->id,
+            amount: $order->total,
+            status: $status,
+            driver: $this->name(),
+            providerRef: is_object($intent) ? ($intent->id ?? null) : null,
+            merchantId: $merchant->id,
+            errorCode: $code,
         );
     }
 
@@ -118,6 +160,9 @@ class StripeDriver implements MoneyInDriver
 
             if ($order->offSession) {
                 $params['off_session'] = true;
+                // No user is present to answer a step-up, so turn a requires_action into a
+                // hard decline (CardException) the host can classify, not a limbo intent.
+                $params['error_on_requires_action'] = true;
             }
         }
 
@@ -136,6 +181,23 @@ class StripeDriver implements MoneyInDriver
         }
 
         return $params;
+    }
+
+    /**
+     * Per-request Stripe options. An off-session reload seeds a deterministic
+     * Idempotency-Key from the Order reference (the reload reason) so a network
+     * retry of the *same* window can never double-charge. Interactive charges keep
+     * Stripe's default (no key); the durable guard remains topUpOnce(reason).
+     *
+     * @return array<string, mixed>
+     */
+    private function intentOptions(Order $order): array
+    {
+        if ($order->offSession && $order->reference !== null) {
+            return ['idempotency_key' => $order->reference];
+        }
+
+        return [];
     }
 
     /**

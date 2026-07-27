@@ -9,9 +9,11 @@ use Rushing\Commerce\Billing\ComponentRegistry;
 use Rushing\Commerce\Billing\Pricing\PricingStrategyRegistry;
 use Rushing\Commerce\Budget\BudgetGate;
 use Rushing\Commerce\Contracts\MerchantResolver;
+use Rushing\Commerce\Contracts\PaymentMethodResolver;
 use Rushing\Commerce\Contracts\StripeClientFactory;
 use Rushing\Commerce\Stripe\ConfigMerchantResolver;
 use Rushing\Commerce\Stripe\ConfigStripeClients;
+use Rushing\Commerce\Support\NullPaymentMethodResolver;
 
 /**
  * Registers the shared commerce engine. The money-in module (manager + `MoneyIn`
@@ -40,6 +42,10 @@ class CommerceServiceProvider extends ServiceProvider
         // resolve the billing party and its own per-tenant credentials.
         $this->app->bind(MerchantResolver::class, ConfigMerchantResolver::class);
         $this->app->bind(StripeClientFactory::class, ConfigStripeClients::class);
+
+        // Auto-reload's card-identity seam: no host bound means no chargeable card
+        // (ADR-0131). A host rebinds this over its own card store to arm auto-reload.
+        $this->app->bind(PaymentMethodResolver::class, NullPaymentMethodResolver::class);
     }
 
     public function boot(): void

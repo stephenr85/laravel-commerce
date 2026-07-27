@@ -20,9 +20,27 @@ class CannedStripeHttpClient implements ClientInterface
      */
     public string $paymentIntentStatus = 'succeeded';
 
+    /**
+     * When set, the next PaymentIntent create returns a 402 error body instead of a
+     * success — the real SDK then throws the matching exception (a `card_error` type
+     * becomes a CardException). Shape: ['type' => 'card_error', 'code' => …,
+     * 'decline_code' => …, 'payment_intent' => ['id' => …]]. Exercises the off-session
+     * decline / step-up path with no live Stripe.
+     *
+     * @var array<string, mixed>|null
+     */
+    public ?array $paymentIntentError = null;
+
+    /** @var array<int, array<string, mixed>> Per-request options (idempotency key, etc.). */
+    public array $options = [];
+
     public function request($method, $absUrl, $headers, $params, $hasFile, $apiMode = 'v1')
     {
-        $this->requests[] = ['method' => $method, 'url' => $absUrl, 'params' => $params];
+        $this->requests[] = ['method' => $method, 'url' => $absUrl, 'params' => $params, 'headers' => $headers];
+
+        if ($this->paymentIntentError !== null && str_contains($absUrl, '/v1/payment_intents')) {
+            return [json_encode(['error' => $this->paymentIntentError]), 402, []];
+        }
 
         $body = match (true) {
             str_contains($absUrl, '/v1/payment_intents') => json_encode([

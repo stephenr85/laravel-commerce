@@ -23,6 +23,10 @@ class Payment extends Data implements SchemaIdentity
         public string $driver,
         public ?string $providerRef = null,
         public ?string $merchantId = null,
+        // The normalized provider decline/failure code on a non-success outcome
+        // (e.g. insufficient_funds | authentication_required) — null on success.
+        // Lets a host classify an off-session failure without a provider-specific type.
+        public ?string $errorCode = null,
     ) {}
 
     public function succeeded(): bool
