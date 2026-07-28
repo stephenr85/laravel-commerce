@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $payment_id
  * @property string|null $provider_ref
  * @property string $driver
+ * @property string|null $receipt_id
  * @property array|null $provenance
  */
 class AcpOrder extends Model

@@ -25,6 +25,8 @@ return new class extends Migration
             $table->string('payment_id');
             $table->string('provider_ref')->nullable();
             $table->string('driver');
+            // The receipt recorded against the order (buyer-facing proof of the charge).
+            $table->string('receipt_id')->nullable();
             // The agent-provenance trace: which agent / session / reason drove the sale.
             $table->json('provenance')->nullable();
             $table->timestamps();

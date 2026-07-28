@@ -140,8 +140,12 @@ class StripeDriver implements MoneyInDriver
             ], fn ($value) => $value !== null),
         ];
 
-        // Referencing or saving a card needs a provider customer to attach it to.
-        if ($order->paymentMethodRef !== null || $order->savePaymentMethod) {
+        // Referencing or saving a *stored* card needs a provider customer to attach it to.
+        // A delegated/shared token (ACP sell-side) is the exception: it charges directly on
+        // the merchant's own account as merchant-of-record with no customer of ours (the
+        // buyer's agent vaulted it upstream), so we never resolve a CustomerVault for it —
+        // and nothing Stripe-identity-shaped is persisted below the seam (ADR-0131).
+        if (! $order->delegated && ($order->paymentMethodRef !== null || $order->savePaymentMethod)) {
             if ($this->vault === null) {
                 throw new RuntimeException(
                     'Saving or charging a stored card requires a CustomerVault implementation. Bind '

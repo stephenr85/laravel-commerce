@@ -6,6 +6,7 @@ use Rushing\Commerce\Acp\Data\AgentProvenance;
 use Rushing\Commerce\Acp\Data\CheckoutSession;
 use Rushing\Commerce\Acp\Data\OrderRef;
 use Rushing\Commerce\Data\Payment;
+use Rushing\Commerce\Data\Receipt;
 
 /**
  * The `Order` half of the ACP substrate seam: record the **minimal order** a
@@ -17,5 +18,10 @@ use Rushing\Commerce\Data\Payment;
  */
 interface OrderStore
 {
-    public function record(CheckoutSession $session, Payment $payment, AgentProvenance $provenance): OrderRef;
+    public function record(
+        CheckoutSession $session,
+        Payment $payment,
+        Receipt $receipt,
+        AgentProvenance $provenance,
+    ): OrderRef;
 }

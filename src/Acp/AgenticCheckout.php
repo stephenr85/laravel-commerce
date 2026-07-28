@@ -131,19 +131,23 @@ class AgenticCheckout
             currency: $session->currency,
             reference: $session->id,
             // The delegate token rides through the driver seam as the opaque
-            // payment-method ref; the satellite charges it as merchant-of-record.
+            // payment-method ref; the satellite charges it as merchant-of-record. It is a
+            // delegated/shared token (no customer of ours), and off-session (no buyer
+            // present for a step-up) — the driver charges it directly on the merchant account.
             paymentMethodRef: $payment->token,
             offSession: true,
             billingAddress: $payment->billingAddress,
+            delegated: true,
         );
 
-        $captured = $this->moneyIn->place($order)->payment;
+        $purchase = $this->moneyIn->place($order);
+        $captured = $purchase->payment;
 
         if (! $captured->succeeded()) {
             throw CheckoutException::chargeFailed($id, $captured->status, $captured->errorCode);
         }
 
-        $orderRef = $this->orders->record($session, $captured, $provenance);
+        $orderRef = $this->orders->record($session, $captured, $purchase->receipt, $provenance);
 
         $completed = new CheckoutSession(
             id: $session->id,

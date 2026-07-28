@@ -33,6 +33,10 @@ class Order extends Data implements SchemaIdentity
         public bool $savePaymentMethod = false,
         public bool $offSession = false,
         public ?BillingAddress $billingAddress = null,
+        // The `paymentMethodRef` is a delegated/shared payment token (ACP sell-side):
+        // chargeable directly on the merchant's own account with no customer of ours —
+        // the buyer's agent vaulted it upstream. The driver skips the CustomerVault for it.
+        public bool $delegated = false,
     ) {}
 
     /**
@@ -49,6 +53,7 @@ class Order extends Data implements SchemaIdentity
         bool $savePaymentMethod = false,
         bool $offSession = false,
         ?BillingAddress $billingAddress = null,
+        bool $delegated = false,
     ): self {
         $currency ??= $lineItems[0]->amount->currency ?? config('commerce.currency', 'USD');
 
@@ -70,6 +75,7 @@ class Order extends Data implements SchemaIdentity
             savePaymentMethod: $savePaymentMethod,
             offSession: $offSession,
             billingAddress: $billingAddress,
+            delegated: $delegated,
         );
     }
 
