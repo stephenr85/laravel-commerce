@@ -45,6 +45,18 @@ it('rejects a session against an unresolvable offer', function () {
         ->toThrow(CheckoutException::class);
 });
 
+it('rejects a requested currency that mismatches the resolved offers', function () {
+    // The offer is priced in USD; asking for EUR must be a 422 protocol error, never an
+    // uncaught Money::plus exception on the public endpoint.
+    expect(fn () => checkout()->create([['item_ref' => 'demo-offer']], currency: 'EUR'))
+        ->toThrow(CheckoutException::class);
+
+    $this->postJson('agentic-commerce/checkout_sessions', [
+        'items' => [['item_ref' => 'demo-offer']],
+        'currency' => 'EUR',
+    ])->assertStatus(422)->assertJsonPath('error.code', 'currency_mismatch');
+});
+
 it('completes checkout: charges the delegate token, records a minimal order + provenance', function () {
     $provenance = new AgentProvenance(agentId: 'agent_42', sessionId: 'sess_7', reason: 'gift for a friend');
     $session = checkout()->create([['item_ref' => 'demo-offer']], $provenance);

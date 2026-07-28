@@ -69,7 +69,17 @@ class AgenticCheckout
             );
         }
 
+        // Reconcile currencies before summing — an agent may request a currency the
+        // offers aren't priced in, or (via multiple refs) mix currencies. Reject it as a
+        // protocol error (422) rather than letting Money::plus throw an uncaught 500 on
+        // the public endpoint.
         $currency ??= $lines[0]->unitAmount->currency;
+        foreach ($lines as $line) {
+            if ($line->unitAmount->currency !== $currency) {
+                throw CheckoutException::currencyMismatch($currency, $line->unitAmount->currency);
+            }
+        }
+
         $total = Money::zero($currency);
         foreach ($lines as $line) {
             $total = $total->plus($line->amount);

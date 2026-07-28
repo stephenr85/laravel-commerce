@@ -30,6 +30,15 @@ class CheckoutException extends RuntimeException
         return new self("No purchasable offer resolves for reference [{$ref}].", 'unresolvable_offer', 422);
     }
 
+    public static function currencyMismatch(string $expected, string $found): self
+    {
+        return new self(
+            "A checkout session cannot mix currencies (expected {$expected}, got {$found}).",
+            'currency_mismatch',
+            422,
+        );
+    }
+
     public static function unknownSession(string $id): self
     {
         return new self("No checkout session [{$id}].", 'unknown_session', 404);
