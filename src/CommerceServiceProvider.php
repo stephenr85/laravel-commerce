@@ -9,6 +9,7 @@ use Rushing\Commerce\Acp\AgenticCheckout;
 use Rushing\Commerce\Acp\Contracts\CheckoutSessionStore;
 use Rushing\Commerce\Acp\Contracts\OfferResolver;
 use Rushing\Commerce\Acp\Contracts\OrderStore;
+use Rushing\Commerce\Acp\Feed\AcpFeedRegistry;
 use Rushing\Commerce\Acp\Support\EloquentCheckoutSessionStore;
 use Rushing\Commerce\Acp\Support\EloquentOrderStore;
 use Rushing\Commerce\Acp\Support\FixtureOfferResolver;
@@ -64,6 +65,10 @@ class CommerceServiceProvider extends ServiceProvider
         $this->app->bind(CheckoutSessionStore::class, EloquentCheckoutSessionStore::class);
         $this->app->bind(OrderStore::class, EloquentOrderStore::class);
         $this->app->singleton(AgenticCheckout::class);
+
+        // The ACP product-feed projector registry — the discovery half of the protocol.
+        // A host registers a projector per catalog DTO to emit the agent-checkout feed shape.
+        $this->app->singleton(AcpFeedRegistry::class);
     }
 
     public function boot(): void
