@@ -74,6 +74,8 @@ return [
         'credit_entries' => 'commerce_credit_entries',
         'auto_reload_configs' => 'commerce_auto_reload_configs',
         'auto_reload_attempts' => 'commerce_auto_reload_attempts',
+        'acp_checkout_sessions' => 'commerce_acp_checkout_sessions',
+        'acp_orders' => 'commerce_acp_orders',
     ],
 
     /*
@@ -132,6 +134,31 @@ return [
             // Consecutive instrument-declines before the engine auto-disables a config
             // (non-tunable — a failure backstop, not a tenant knob).
             'disable_after_consecutive_failures' => 3,
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Agentic Commerce Protocol (sell-side)
+    |--------------------------------------------------------------------------
+    |
+    | The ACP merchant seam: an external shopping agent discovers an offer and
+    | completes an Agentic Checkout, handing over a delegate payment token the
+    | satellite charges as merchant-of-record. `route_root` is the URI root the
+    | host mounts the protocol under (via `Route::commerceAcpRoutes()`). `fixtures`
+    | are the tracer's stand-in offers, keyed by opaque catalog ref — slice 02
+    | rebinds `OfferResolver` to a real schema.org/ACP feed and these go unused.
+    |
+    */
+    'acp' => [
+        'route_root' => env('COMMERCE_ACP_ROUTE_ROOT', 'agentic-commerce'),
+
+        'fixtures' => [
+            'demo-offer' => [
+                'name' => 'Demo Offer',
+                'amount' => 900,
+                'currency' => 'USD',
+            ],
         ],
     ],
 ];
