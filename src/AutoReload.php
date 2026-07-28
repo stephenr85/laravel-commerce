@@ -6,6 +6,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Rushing\Commerce\Contracts\PaymentMethodResolver;
 use Rushing\Commerce\Contracts\UsageMeter;
+use Rushing\Commerce\Data\AutoReloadPolicyClamps;
 use Rushing\Commerce\Data\EffectiveAutoReloadConfig;
 use Rushing\Commerce\Data\ReloadDecision;
 use Rushing\Commerce\Enums\AutoReloadOutcome;
@@ -95,21 +96,15 @@ class AutoReload
         }
 
         $defaults = (array) config('commerce.autoreload.defaults', []);
-        $policy = (array) config('commerce.autoreload.policy', []);
-
-        $minCooldown = (int) ($policy['min_cooldown_seconds'] ?? 60);
-        $defaultCooldown = (int) ($defaults['cooldown_seconds'] ?? 300);
-        $spendCeiling = (float) ($policy['max_spend_ceiling_usd'] ?? 500);
-        $reloadsCeiling = (int) ($policy['max_reloads_ceiling'] ?? 30);
-        $perReloadCeiling = (float) ($policy['max_per_reload_ceiling_usd'] ?? 200);
+        $clamps = $this->policyClamps();
 
         // Cooldown floors at the policy minimum; a null value takes the host default.
-        $effectiveCooldown = max($config->cooldown_seconds ?? $defaultCooldown, $minCooldown);
+        $effectiveCooldown = max($config->cooldown_seconds ?? $clamps->defaultCooldownSeconds, $clamps->minCooldownSeconds);
 
         // The three ceilings clamp downward; a null tenant value takes the policy ceiling.
-        $effectiveReloads = min($config->max_reloads_per_period ?? $reloadsCeiling, $reloadsCeiling);
-        $effectiveSpend = min($config->max_spend_per_period_usd ?? $spendCeiling, $spendCeiling);
-        $effectivePerReload = min($config->max_per_reload_usd ?? $perReloadCeiling, $perReloadCeiling);
+        $effectiveReloads = min($config->max_reloads_per_period ?? $clamps->maxReloadsCeiling, $clamps->maxReloadsCeiling);
+        $effectiveSpend = min($config->max_spend_per_period_usd ?? $clamps->maxSpendCeilingUsd, $clamps->maxSpendCeilingUsd);
+        $effectivePerReload = min($config->max_per_reload_usd ?? $clamps->maxPerReloadCeilingUsd, $clamps->maxPerReloadCeilingUsd);
 
         return new EffectiveAutoReloadConfig(
             party: $party,
@@ -220,7 +215,7 @@ class AutoReload
             ->where('unit', $unit)
             ->first();
 
-        $threshold = (int) config('commerce.autoreload.policy.disable_after_consecutive_failures', 3);
+        $threshold = $this->policyClamps()->disableAfterConsecutiveFailures;
         $counter = $config?->consecutive_failures ?? 0;
         $causedDisable = false;
 
@@ -288,6 +283,33 @@ class AutoReload
         $window = intdiv(Carbon::now()->getTimestamp(), $cooldownSeconds);
 
         return "autoreload:{$party}:{$unit}:{$window}";
+    }
+
+    /**
+     * The engine safety clamps (policy ceilings + host default cooldown), resolved from
+     * config — the single engine-owned source a host UI reads to render the "platform
+     * max $X" hint instead of re-deriving the policy fallback defaults app-side.
+     */
+    public function policyClamps(): AutoReloadPolicyClamps
+    {
+        return AutoReloadPolicyClamps::fromConfig();
+    }
+
+    /**
+     * The party's most recent auto-reload attempts (success and failure alike), newest
+     * first — the read the host's activity surface renders. The engine owns the attempt
+     * model, so the ledger read belongs here rather than in a host raw query.
+     *
+     * @return Collection<int, AutoReloadAttempt>
+     */
+    public function recentAttempts(string $party, string $unit, int $limit = 20): Collection
+    {
+        return AutoReloadAttempt::query()
+            ->where('party_id', $party)
+            ->where('unit', $unit)
+            ->orderByDesc('created_at')
+            ->limit($limit)
+            ->get();
     }
 
     private function balanceFor(string $party, string $unit): float
