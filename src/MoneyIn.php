@@ -22,7 +22,10 @@ class MoneyIn
 {
     public function __construct(private MoneyInManager $manager) {}
 
-    public function place(Order $order, ?string $driver = null, ?string $beneficiaryId = null): Purchase
+    /**
+     * @param  array<string, mixed>  $grant  opaque fulfillment bag carried onto the Purchase (issue 07)
+     */
+    public function place(Order $order, ?string $driver = null, ?string $beneficiaryId = null, array $grant = []): Purchase
     {
         $payment = $this->driver($driver)->pay($order);
 
@@ -40,6 +43,7 @@ class MoneyIn
             payment: $payment,
             receipt: $receipt,
             beneficiaryId: $beneficiaryId,
+            grant: $grant,
         );
 
         // Only a captured payment completes a purchase — a decline or an unresolved

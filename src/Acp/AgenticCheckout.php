@@ -109,27 +109,39 @@ class AgenticCheckout
     }
 
     /**
-     * The order-level fulfillment kind, sourced from the resolved offers' descriptor (issue 05). Each
-     * line's offer is re-resolved by its opaque ref to recover `Offer::$kind`; the first line that
-     * declares a kind wins (an Order carries one kind — mixed-kind carts are out of scope). The offer's
-     * host-facing kind string is matched to the engine's {@see PurchaseKind}, tolerating either separator
-     * (a host may advertise `credit-topup`; the enum is `credit_topup`). An unknown/absent kind returns
-     * null, so `Order::for()` falls back to its cadence default (Perpetual) — unchanged behavior.
+     * The order's fulfillment descriptor, sourced from the resolved offers (issues 05–07). Each line's
+     * offer is re-resolved by its opaque ref; the first line that declares a `kind` OR a `grant` is the
+     * fulfilling line (an Order carries one kind — mixed-kind carts are out of scope). Returns:
+     *   - `kind`: the offer's host-facing kind matched to the engine's {@see PurchaseKind}, tolerating
+     *     either separator (`credit-topup` vs `credit_topup`); null → `Order::for()`'s cadence default.
+     *   - `grant`: the offer's opaque grant bag PLUS the purchased line context (`offer` ref + `qty`), so
+     *     a `PurchaseCompleted` listener — which fires BEFORE any order is recorded — can build its
+     *     fulfillment (e.g. Circuit Run parameters {buyer, qty, offer}) from the event alone.
+     *
+     * @return array{kind: ?PurchaseKind, grant: array<string, mixed>}
      */
-    private function fulfillmentKind(CheckoutSession $session): ?PurchaseKind
+    private function fulfillment(CheckoutSession $session): array
     {
         foreach ($session->lineItems as $line) {
-            $kind = $this->offers->resolve($line->itemRef)?->kind;
+            $offer = $this->offers->resolve($line->itemRef);
 
-            if ($kind === null || $kind === '') {
+            if ($offer === null) {
                 continue;
             }
 
-            return PurchaseKind::tryFrom($kind)
-                ?? PurchaseKind::tryFrom(str_replace('-', '_', $kind));
+            $kind = ($offer->kind === null || $offer->kind === '')
+                ? null
+                : (PurchaseKind::tryFrom($offer->kind) ?? PurchaseKind::tryFrom(str_replace('-', '_', $offer->kind)));
+
+            if ($kind !== null || $offer->grant !== []) {
+                return [
+                    'kind' => $kind,
+                    'grant' => $offer->grant + ['offer' => $line->itemRef, 'qty' => $line->quantity],
+                ];
+            }
         }
 
-        return null;
+        return ['kind' => null, 'grant' => []];
     }
 
     /**
@@ -159,6 +171,10 @@ class AgenticCheckout
         // that opened it even if `complete` resent only a subset of headers.
         $provenance = ($session->provenance ?? new AgentProvenance)->merge($provenance);
 
+        // The fulfillment descriptor (issues 05–07): the offer's kind (→ Order) and its grant bag +
+        // purchased context (→ the Purchase, for listeners). Resolved once here.
+        $fulfillment = $this->fulfillment($session);
+
         $order = Order::for(
             customer: new Customer(id: $provenance->customerKey()),
             lineItems: array_map(
@@ -166,9 +182,9 @@ class AgenticCheckout
                 $session->lineItems,
             ),
             currency: $session->currency,
-            // The fulfillment kind (issue 06): sourced from the resolved offer's descriptor so a
-            // completed purchase declares what it grants (e.g. CreditTopup), not the Perpetual default.
-            kind: $this->fulfillmentKind($session),
+            // The fulfillment kind (issue 06): so a completed purchase declares what it grants (e.g.
+            // CreditTopup), not the Perpetual default.
+            kind: $fulfillment['kind'],
             reference: $session->id,
             // The delegate token rides through the driver seam as the opaque
             // payment-method ref; the satellite charges it as merchant-of-record. It is a
@@ -185,7 +201,10 @@ class AgenticCheckout
         // recorded but grant listeners early-return (money-in without value-out).
         $beneficiaryId = $this->beneficiaries->resolve($provenance);
 
-        $purchase = $this->moneyIn->place($order, beneficiaryId: $beneficiaryId);
+        // Carry the fulfillment grant onto the Purchase (issue 07) so a listener can fulfill through a
+        // second tier (e.g. a Circuit Run) — it fires before any order is recorded, so the offer ref +
+        // qty must ride here, not in a stored order.
+        $purchase = $this->moneyIn->place($order, beneficiaryId: $beneficiaryId, grant: $fulfillment['grant']);
         $captured = $purchase->payment;
 
         if (! $captured->succeeded()) {
