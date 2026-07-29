@@ -3,6 +3,7 @@
 namespace Rushing\Commerce\Acp;
 
 use Illuminate\Support\Str;
+use Rushing\Commerce\Acp\Contracts\BeneficiaryResolver;
 use Rushing\Commerce\Acp\Contracts\CheckoutSessionStore;
 use Rushing\Commerce\Acp\Contracts\OfferResolver;
 use Rushing\Commerce\Acp\Contracts\OrderStore;
@@ -16,6 +17,7 @@ use Rushing\Commerce\Data\Customer;
 use Rushing\Commerce\Data\LineItem;
 use Rushing\Commerce\Data\Money;
 use Rushing\Commerce\Data\Order;
+use Rushing\Commerce\Enums\PurchaseKind;
 use Rushing\Commerce\MoneyIn;
 
 /**
@@ -33,6 +35,7 @@ class AgenticCheckout
         private CheckoutSessionStore $sessions,
         private OrderStore $orders,
         private MoneyIn $moneyIn,
+        private BeneficiaryResolver $beneficiaries,
     ) {}
 
     /**
@@ -106,6 +109,30 @@ class AgenticCheckout
     }
 
     /**
+     * The order-level fulfillment kind, sourced from the resolved offers' descriptor (issue 05). Each
+     * line's offer is re-resolved by its opaque ref to recover `Offer::$kind`; the first line that
+     * declares a kind wins (an Order carries one kind — mixed-kind carts are out of scope). The offer's
+     * host-facing kind string is matched to the engine's {@see PurchaseKind}, tolerating either separator
+     * (a host may advertise `credit-topup`; the enum is `credit_topup`). An unknown/absent kind returns
+     * null, so `Order::for()` falls back to its cadence default (Perpetual) — unchanged behavior.
+     */
+    private function fulfillmentKind(CheckoutSession $session): ?PurchaseKind
+    {
+        foreach ($session->lineItems as $line) {
+            $kind = $this->offers->resolve($line->itemRef)?->kind;
+
+            if ($kind === null || $kind === '') {
+                continue;
+            }
+
+            return PurchaseKind::tryFrom($kind)
+                ?? PurchaseKind::tryFrom(str_replace('-', '_', $kind));
+        }
+
+        return null;
+    }
+
+    /**
      * Complete a checkout session: charge the delegate token through the money-in
      * driver and, on a captured payment, record the minimal order + provenance and
      * flip the session to `completed`. A declined/step-up charge leaves the session
@@ -139,6 +166,9 @@ class AgenticCheckout
                 $session->lineItems,
             ),
             currency: $session->currency,
+            // The fulfillment kind (issue 06): sourced from the resolved offer's descriptor so a
+            // completed purchase declares what it grants (e.g. CreditTopup), not the Perpetual default.
+            kind: $this->fulfillmentKind($session),
             reference: $session->id,
             // The delegate token rides through the driver seam as the opaque
             // payment-method ref; the satellite charges it as merchant-of-record. It is a
@@ -150,7 +180,12 @@ class AgenticCheckout
             delegated: true,
         );
 
-        $purchase = $this->moneyIn->place($order);
+        // Resolve who the grant lands on (issue 06). Off-session/agent-driven — the host maps the
+        // provenance to an opaque beneficiary id; the engine stays account-blind. Null → the sale is
+        // recorded but grant listeners early-return (money-in without value-out).
+        $beneficiaryId = $this->beneficiaries->resolve($provenance);
+
+        $purchase = $this->moneyIn->place($order, beneficiaryId: $beneficiaryId);
         $captured = $purchase->payment;
 
         if (! $captured->succeeded()) {

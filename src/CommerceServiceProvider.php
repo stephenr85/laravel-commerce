@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Rushing\Commerce\Acp\AgenticCheckout;
+use Rushing\Commerce\Acp\Contracts\BeneficiaryResolver;
 use Rushing\Commerce\Acp\Contracts\CheckoutSessionStore;
 use Rushing\Commerce\Acp\Contracts\OfferResolver;
 use Rushing\Commerce\Acp\Contracts\OrderStore;
@@ -13,6 +14,7 @@ use Rushing\Commerce\Acp\Feed\AcpFeedRegistry;
 use Rushing\Commerce\Acp\Support\EloquentCheckoutSessionStore;
 use Rushing\Commerce\Acp\Support\EloquentOrderStore;
 use Rushing\Commerce\Acp\Support\FixtureOfferResolver;
+use Rushing\Commerce\Acp\Support\NullBeneficiaryResolver;
 use Rushing\Commerce\Billing\BillComposer;
 use Rushing\Commerce\Billing\ComponentRegistry;
 use Rushing\Commerce\Billing\Pricing\PricingStrategyRegistry;
@@ -64,6 +66,9 @@ class CommerceServiceProvider extends ServiceProvider
         $this->app->bind(OfferResolver::class, FixtureOfferResolver::class);
         $this->app->bind(CheckoutSessionStore::class, EloquentCheckoutSessionStore::class);
         $this->app->bind(OrderStore::class, EloquentOrderStore::class);
+        // Fulfillment beneficiary (issue 06): default resolves nothing, so out of the box a checkout
+        // records the sale but grants nothing. A host binds its own resolver to grant value.
+        $this->app->bind(BeneficiaryResolver::class, NullBeneficiaryResolver::class);
         $this->app->singleton(AgenticCheckout::class);
 
         // The ACP product-feed projector registry — the discovery half of the protocol.
