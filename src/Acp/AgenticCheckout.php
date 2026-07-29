@@ -136,7 +136,10 @@ class AgenticCheckout
             if ($kind !== null || $offer->grant !== []) {
                 return [
                     'kind' => $kind,
-                    'grant' => $offer->grant + ['offer' => $line->itemRef, 'qty' => $line->quantity],
+                    // Runtime purchase context (offer ref + qty) is AUTHORITATIVE — array_merge so it
+                    // overrides, never a left-biased `+` where a declared grant key named `offer`/`qty`
+                    // would silently shadow the real purchased line.
+                    'grant' => array_merge($offer->grant, ['offer' => $line->itemRef, 'qty' => $line->quantity]),
                 ];
             }
         }
