@@ -21,9 +21,9 @@ use Rushing\Commerce\Billing\Pricing\PricingStrategyRegistry;
 use Rushing\Commerce\Budget\BudgetGate;
 use Rushing\Commerce\Contracts\MerchantResolver;
 use Rushing\Commerce\Contracts\PaymentMethodResolver;
-use Rushing\Commerce\Contracts\StripeClientFactory;
 use Rushing\Commerce\Stripe\ConfigMerchantResolver;
 use Rushing\Commerce\Stripe\ConfigStripeClients;
+use Rushing\Commerce\Stripe\StripeClientFactory;
 use Rushing\Commerce\Support\NullPaymentMethodResolver;
 
 /**

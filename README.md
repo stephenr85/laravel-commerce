@@ -66,7 +66,8 @@ what it needs:
 
 - `MerchantResolver` — the billing party that collects for an Order (`parent_tenant_id ?? self` in a
   tenancy-aware host). Ships a single-merchant config default.
-- `StripeClientFactory` — a Stripe client on the resolved Merchant's own key.
+- `StripeClientFactory` (`Rushing\Commerce\Stripe\`, not the neutral `Contracts/`) — a Stripe client on
+  the resolved Merchant's own key.
 - `SubscriptionBinder` — recurring Orders; the host calls Cashier directly (Cashier is never wrapped).
 - `CustomerVault` — saved cards (see below); no default binding.
 - `UsageMeter` — the read side of the spend gate; each host keeps its own usage ledger.

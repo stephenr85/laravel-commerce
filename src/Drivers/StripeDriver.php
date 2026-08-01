@@ -7,7 +7,6 @@ use RuntimeException;
 use Rushing\Commerce\Contracts\CustomerVault;
 use Rushing\Commerce\Contracts\MerchantResolver;
 use Rushing\Commerce\Contracts\MoneyInDriver;
-use Rushing\Commerce\Contracts\StripeClientFactory;
 use Rushing\Commerce\Contracts\SubscriptionBinder;
 use Rushing\Commerce\Data\BillingAddress;
 use Rushing\Commerce\Data\Merchant;
@@ -16,6 +15,7 @@ use Rushing\Commerce\Data\Payment;
 use Rushing\Commerce\Data\Refund;
 use Rushing\Commerce\Enums\Cadence;
 use Rushing\Commerce\Enums\PaymentStatus;
+use Rushing\Commerce\Stripe\StripeClientFactory;
 use Stripe\Exception\CardException;
 use Stripe\PaymentIntent;
 

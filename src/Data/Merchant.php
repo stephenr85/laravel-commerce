@@ -9,8 +9,8 @@ use Spatie\LaravelData\Data;
  * The party that collects payment and owns the payment-provider account. Fractal:
  * the platform, a satellite, and a broker are each a Merchant with their own
  * account. Credentials are never carried on the DTO — they are resolved out of
- * band by a StripeClientFactory keyed on the Merchant id, so a serialized Merchant
- * never leaks a secret.
+ * band by a provider-scoped client factory (e.g. `Rushing\Commerce\Stripe\StripeClientFactory`)
+ * keyed on the Merchant id, so a serialized Merchant never leaks a secret.
  */
 class Merchant extends Data implements SchemaIdentity
 {

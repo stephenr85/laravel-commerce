@@ -3,7 +3,6 @@
 namespace Rushing\Commerce\Stripe;
 
 use RuntimeException;
-use Rushing\Commerce\Contracts\StripeClientFactory;
 use Rushing\Commerce\Data\Merchant;
 use Stripe\StripeClient;
 
