@@ -12,11 +12,11 @@ use Rushing\Commerce\Contracts\PaymentMethodResolver;
  * provider identity in the resolver and out of the driver. Not a spatie Data class:
  * it is a transient charge-time value, never serialized into a schema at rest.
  */
-final class PaymentMethodRef
+class PaymentMethodRef
 {
     public function __construct(
-        public readonly string $customer,        // e.g. cus_… — which provider customer is this party
-        public readonly string $paymentMethod,   // e.g. pm_…
-        public readonly string $source,          // setup_intent | subscription
+        public string $customer,        // e.g. cus_… — which provider customer is this party
+        public string $paymentMethod,   // e.g. pm_…
+        public string $source,          // setup_intent | subscription
     ) {}
 }

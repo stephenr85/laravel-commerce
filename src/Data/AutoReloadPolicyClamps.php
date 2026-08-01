@@ -15,15 +15,15 @@ use Rushing\Commerce\AutoReload;
  * ceilings to a host UI so it renders the "platform max $X" hint without re-deriving the
  * policy fallback defaults app-side.
  */
-final class AutoReloadPolicyClamps
+class AutoReloadPolicyClamps
 {
     public function __construct(
-        public readonly int $minCooldownSeconds,
-        public readonly int $maxReloadsCeiling,
-        public readonly float $maxSpendCeilingUsd,
-        public readonly float $maxPerReloadCeilingUsd,
-        public readonly int $defaultCooldownSeconds,
-        public readonly int $disableAfterConsecutiveFailures,
+        public int $minCooldownSeconds,
+        public int $maxReloadsCeiling,
+        public float $maxSpendCeilingUsd,
+        public float $maxPerReloadCeilingUsd,
+        public int $defaultCooldownSeconds,
+        public int $disableAfterConsecutiveFailures,
     ) {}
 
     /**

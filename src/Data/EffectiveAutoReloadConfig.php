@@ -10,31 +10,31 @@ namespace Rushing\Commerce\Data;
  * host UI can render the "clamped to $X / platform max $X" hint. hasPaymentMethod is
  * delegated to the host-bound resolver; status is derived, never stored.
  */
-final class EffectiveAutoReloadConfig
+class EffectiveAutoReloadConfig
 {
     public function __construct(
-        public readonly string $party,
-        public readonly string $unit,
-        public readonly bool $enabled,
-        public readonly float $thresholdUsd,
-        public readonly string $amountMode,          // fixed | to_target
-        public readonly ?float $reloadAmountUsd,
-        public readonly ?float $targetUsd,
+        public string $party,
+        public string $unit,
+        public bool $enabled,
+        public float $thresholdUsd,
+        public string $amountMode,          // fixed | to_target
+        public ?float $reloadAmountUsd,
+        public ?float $targetUsd,
         // Effective (clamped) guardrails — always concrete, ready for shouldReload().
-        public readonly int $cooldownSeconds,
-        public readonly int $maxReloadsPerPeriod,
-        public readonly float $maxSpendPerPeriodUsd,
-        public readonly float $maxPerReloadUsd,
-        public readonly int $periodDays,
+        public int $cooldownSeconds,
+        public int $maxReloadsPerPeriod,
+        public float $maxSpendPerPeriodUsd,
+        public float $maxPerReloadUsd,
+        public int $periodDays,
         // Raw (as configured) guardrails — null when unset; for the clamp hint.
-        public readonly ?int $rawCooldownSeconds,
-        public readonly ?int $rawMaxReloadsPerPeriod,
-        public readonly ?float $rawMaxSpendPerPeriodUsd,
-        public readonly ?float $rawMaxPerReloadUsd,
-        public readonly bool $hasPaymentMethod,
-        public readonly ?string $paymentMethodSource,
-        public readonly ?string $disabledReason,
-        public readonly int $consecutiveFailures,
+        public ?int $rawCooldownSeconds,
+        public ?int $rawMaxReloadsPerPeriod,
+        public ?float $rawMaxSpendPerPeriodUsd,
+        public ?float $rawMaxPerReloadUsd,
+        public bool $hasPaymentMethod,
+        public ?string $paymentMethodSource,
+        public ?string $disabledReason,
+        public int $consecutiveFailures,
     ) {}
 
     /**

@@ -12,13 +12,13 @@ use Rushing\Commerce\AutoReload;
  * (autoreload:{party}:{unit}:{window}) always rides so an orchestrator locks and
  * charges under the exact key the engine computed — the app never re-derives it.
  */
-final class ReloadDecision
+class ReloadDecision
 {
     public function __construct(
-        public readonly bool $shouldReload,
-        public readonly float $amount,
-        public readonly string $reason,
-        public readonly ?string $blockedBy = null,
+        public bool $shouldReload,
+        public float $amount,
+        public string $reason,
+        public ?string $blockedBy = null,
     ) {}
 
     public static function charge(float $amount, string $reason): self
