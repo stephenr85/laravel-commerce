@@ -2,3 +2,5 @@
 composer.local.json
 .phpunit.result.cache
 .phpunit.cache
+
+CLAUDE.md
