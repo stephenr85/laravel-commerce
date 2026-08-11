@@ -4,7 +4,6 @@ namespace Rushing\Commerce;
 
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\ServiceProvider;
 use Rushing\Commerce\Acp\AgenticCheckout;
 use Rushing\Commerce\Acp\Contracts\BeneficiaryResolver;
 use Rushing\Commerce\Acp\Contracts\CheckoutSessionStore;
@@ -25,15 +24,46 @@ use Rushing\Commerce\Stripe\ConfigMerchantResolver;
 use Rushing\Commerce\Stripe\ConfigStripeClients;
 use Rushing\Commerce\Stripe\StripeClientFactory;
 use Rushing\Commerce\Support\NullPaymentMethodResolver;
+use Spatie\LaravelPackageTools\Package;
+use Spatie\LaravelPackageTools\PackageServiceProvider;
 
 /**
  * Registers the shared commerce engine. The money-in module (manager + `MoneyIn`
  * service) is bound as singletons; it is independent of any payment rail, so the
  * metering plane is usable with Cashier absent (a cost-only tenant like thingson.tv).
+ *
+ * Migrations ship as PUBLISH-ONLY spatie/laravel-package-tools stubs (the estate-wide
+ * convention; mirrors laravel-beam-tenancy 755649a / laravel-beam-accounts 4f9ba78 /
+ * tower 92919bb) — see {@see self::configurePackage()}. The 5 tables here (redemptions,
+ * credit_entries, auto_reload_configs, auto_reload_attempts, the two ACP tables) key off
+ * an opaque `party_id`/`payer_id` string, never a `tenant_id` FK — this engine is
+ * deliberately tenant-blind (it doesn't depend on laravel-beam-tenancy at all). They ship
+ * FLAT, unclassified into `shared/`/`tenant/`: whether a consuming host runs them centrally
+ * (a single-tenant consumer) or republishes them into its own per-tenant migration set (a
+ * multi-tenant broker) is a HOST-side placement decision, not something this package bakes
+ * in — publish-only makes that decision fall naturally out of where `vendor:publish` copies
+ * land, so the old `commerce.register_migrations` config toggle (auto-load vs. don't) is
+ * dropped as redundant.
+ *
+ * The former `register()`/`boot()` bodies move to `packageRegistered()`/`packageBooted()` —
+ * `configurePackage()` only configures, it doesn't replace the boot sequence.
  */
-class CommerceServiceProvider extends ServiceProvider
+class CommerceServiceProvider extends PackageServiceProvider
 {
-    public function register(): void
+    public function configurePackage(Package $package): void
+    {
+        $package
+            ->name('laravel-commerce')
+            ->hasMigrations([
+                'create_commerce_redemptions_table',
+                'create_commerce_credit_entries_table',
+                'create_commerce_auto_reload_configs_table',
+                'create_commerce_auto_reload_attempts_table',
+                'create_commerce_acp_tables',
+            ]);
+    }
+
+    public function packageRegistered(): void
     {
         $this->mergeConfigFrom(__DIR__.'/../config/commerce.php', 'commerce');
 
@@ -76,15 +106,8 @@ class CommerceServiceProvider extends ServiceProvider
         $this->app->singleton(AcpFeedRegistry::class);
     }
 
-    public function boot(): void
+    public function packageBooted(): void
     {
-        // Single-tenant consumers auto-load these as central migrations; a multi-tenant
-        // broker sets commerce.register_migrations=false and publishes them into its
-        // per-tenant migration set (the satellite layer flips this).
-        if (config('commerce.register_migrations', true)) {
-            $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
-        }
-
         // The ACP protocol routes ship as brand-blind definitions; the host mounts
         // them inside its own public tenant group (prefix + tenancy middleware) by
         // calling Route::commerceAcpRoutes(). Mirrors the beam-commerce macro seam.
@@ -102,10 +125,6 @@ class CommerceServiceProvider extends ServiceProvider
             $this->publishes([
                 __DIR__.'/../config/commerce.php' => $this->app->configPath('commerce.php'),
             ], 'commerce-config');
-
-            $this->publishes([
-                __DIR__.'/../database/migrations' => $this->app->databasePath('migrations'),
-            ], 'commerce-migrations');
 
             $this->commands([
                 Console\StripeListenCommand::class,

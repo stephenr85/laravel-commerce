@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "847dfa65d48a49cee02699a82586c40c",
+    "content-hash": "68ce06abf4c4dbc7afab8c020d083802",
     "packages": [
         {
             "name": "brick/math",
@@ -3558,6 +3558,74 @@
                 "source": "https://github.com/ramsey/uuid/tree/4.9.3"
             },
             "time": "2026-06-18T03:57:49+00:00"
+        },
+        {
+            "name": "rushing/laravel-doctor",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "../laravel-doctor",
+                "reference": "fe2b36a9e4470ca0fa561968e8b6c82f626347ec"
+            },
+            "require": {
+                "illuminate/support": "^11.0|^12.0|^13.0",
+                "php": "^8.2"
+            },
+            "require-dev": {
+                "laravel/pint": "^1.0",
+                "orchestra/testbench": "^9.0|^10.0|^11.0",
+                "pestphp/pest": "^2.0|^3.0"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-main": "1.0.x-dev"
+                },
+                "laravel": {
+                    "providers": [
+                        "Rushing\\Doctor\\ServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Rushing\\Doctor\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Rushing\\Doctor\\Tests\\": "tests/"
+                }
+            },
+            "scripts": {
+                "test": [
+                    "vendor/bin/pest"
+                ],
+                "pint": [
+                    "@php -d memory_limit=512M vendor/bin/pint"
+                ]
+            },
+            "license": [
+                "proprietary"
+            ],
+            "authors": [
+                {
+                    "name": "Stephen Rushing",
+                    "email": "stephenr85@gmail.com"
+                }
+            ],
+            "description": "Moat-free doctor-audit primitives: the Finding value object and the Pass/Warn/Fail DoctorStatus vocabulary that every readiness doctor (foundation Beam and the paid satellite) reports in. Foundation-vendor, zero product dependency (ADR-0095).",
+            "keywords": [
+                "audit",
+                "doctor",
+                "laravel",
+                "readiness",
+                "schemastud"
+            ],
+            "transport-options": {
+                "symlink": true,
+                "relative": true
+            }
         },
         {
             "name": "rushing/laravel-popcorn",
@@ -10473,6 +10541,7 @@
     "aliases": [],
     "minimum-stability": "dev",
     "stability-flags": {
+        "rushing/laravel-doctor": 20,
         "schemastud/laravel-data-schemas": 20
     },
     "prefer-stable": true,

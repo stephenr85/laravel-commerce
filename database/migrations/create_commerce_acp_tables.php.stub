@@ -4,6 +4,11 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
+/**
+ * Publish-only spatie/laravel-package-tools stub (timestamp-less `.php.stub`, re-stamped on
+ * `vendor:publish --tag=commerce-migrations`). No squash: this already created both ACP tables
+ * in one file with no ALTER chain — only the timestamp prefix and `.php` extension changed.
+ */
 return new class extends Migration
 {
     public function up(): void

@@ -50,18 +50,6 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Migrations
-    |--------------------------------------------------------------------------
-    |
-    | Single-tenant consumers auto-load the package migrations as central
-    | migrations. A multi-tenant broker sets this false and publishes them into
-    | its per-tenant migration set instead (the satellite layer flips this).
-    |
-    */
-    'register_migrations' => env('COMMERCE_REGISTER_MIGRATIONS', true),
-
-    /*
-    |--------------------------------------------------------------------------
     | Table names
     |--------------------------------------------------------------------------
     |
