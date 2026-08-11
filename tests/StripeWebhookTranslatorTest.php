@@ -1,5 +1,6 @@
 <?php
 
+use Rushing\Commerce\Data\Dispute;
 use Rushing\Commerce\Data\InvoiceRef;
 use Rushing\Commerce\Data\SubscriptionState;
 use Rushing\Commerce\Enums\PurchaseKind;
@@ -56,6 +57,33 @@ it('translates a paid credit-topup session into a CreditTopup purchase', functio
         ->and($purchase->beneficiaryId)->toBe('tenant-x')
         ->and($purchase->payment->providerRef)->toBe('cs_1')
         ->and($purchase->payment->amount->minorUnits)->toBe(2500);
+});
+
+it('translates charge.dispute.created into a neutral Dispute — ticket 06', function () {
+    $dispute = (new StripeWebhookTranslator)->dispute([
+        'type' => 'charge.dispute.created',
+        'data' => ['object' => [
+            'charge' => 'ch_1',
+            'amount' => 5000,
+            'currency' => 'usd',
+            'payment_intent' => 'pi_1',
+            'reason' => 'fraudulent',
+        ]],
+    ]);
+
+    expect($dispute)->toBeInstanceOf(Dispute::class)
+        ->and($dispute->chargeRef)->toBe('ch_1')
+        ->and($dispute->amount->minorUnits)->toBe(5000)
+        ->and($dispute->amount->currency)->toBe('USD')
+        ->and($dispute->paymentIntentRef)->toBe('pi_1')
+        ->and($dispute->reason)->toBe('fraudulent');
+});
+
+it('returns null for a non-dispute event or a dispute payload missing the charge ref', function () {
+    $translator = new StripeWebhookTranslator;
+
+    expect($translator->dispute(['type' => 'invoice.paid']))->toBeNull()
+        ->and($translator->dispute(['type' => 'charge.dispute.created', 'data' => ['object' => ['amount' => 100]]]))->toBeNull();
 });
 
 it('returns null for an unpaid or non-topup session', function () {

@@ -37,6 +37,11 @@ class Order extends Data implements SchemaIdentity
         // chargeable directly on the merchant's own account with no customer of ours —
         // the buyer's agent vaulted it upstream. The driver skips the CustomerVault for it.
         public bool $delegated = false,
+        // Ticket 06 (splicewire-marketplace build): an optional revenue split, entirely
+        // caller-supplied — see {@see Split}'s own docblock. Null for every non-marketplace
+        // Order (the overwhelming majority); a driver that understands Split resolves it to
+        // provider-specific split-payment parameters below this DTO.
+        public ?Split $split = null,
     ) {}
 
     /**
@@ -54,6 +59,7 @@ class Order extends Data implements SchemaIdentity
         bool $offSession = false,
         ?BillingAddress $billingAddress = null,
         bool $delegated = false,
+        ?Split $split = null,
     ): self {
         $currency ??= $lineItems[0]->amount->currency ?? config('commerce.currency', 'USD');
 
@@ -76,6 +82,7 @@ class Order extends Data implements SchemaIdentity
             offSession: $offSession,
             billingAddress: $billingAddress,
             delegated: $delegated,
+            split: $split,
         );
     }
 

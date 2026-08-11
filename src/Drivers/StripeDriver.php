@@ -2,6 +2,9 @@
 
 namespace Rushing\Commerce\Drivers;
 
+use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\Response;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use RuntimeException;
 use Rushing\Commerce\Contracts\CustomerVault;
@@ -9,10 +12,13 @@ use Rushing\Commerce\Contracts\MerchantResolver;
 use Rushing\Commerce\Contracts\MoneyInDriver;
 use Rushing\Commerce\Contracts\SubscriptionBinder;
 use Rushing\Commerce\Data\BillingAddress;
+use Rushing\Commerce\Data\Dispute;
 use Rushing\Commerce\Data\Merchant;
+use Rushing\Commerce\Data\Money;
 use Rushing\Commerce\Data\Order;
 use Rushing\Commerce\Data\Payment;
 use Rushing\Commerce\Data\Refund;
+use Rushing\Commerce\Data\Split;
 use Rushing\Commerce\Enums\Cadence;
 use Rushing\Commerce\Enums\PaymentStatus;
 use Rushing\Commerce\Stripe\StripeClientFactory;
@@ -25,6 +31,15 @@ use Stripe\PaymentIntent;
  * a host SubscriptionBinder (Cashier). We call the Stripe SDK directly and only
  * normalize the outcome into our neutral DTOs (ADR-0001) — the same records and
  * events the fake driver produces, so a feature test can drive either mode.
+ *
+ * Ticket 06 (splicewire-marketplace build, see `docs/adr/0196-*.md`) adds a SECOND, entirely
+ * separate transport for the one case an Order/Payment carries a {@see Split}:
+ * `payWithSplit()`/`refundWithSplit()`/`reverseTransferForDispute()` talk to Stripe's `/v1/*` REST
+ * endpoints over Laravel's own `Http` client rather than the `stripe-php` SDK — the same choice the
+ * marketplace's own payout-gateway resolver (ticket 05) made for its own provisioning calls, for the
+ * same reason: it lets a test assert the exact split-payment params via `Http::fake()`. The existing
+ * SDK-based `pay()`/`refund()` path for a split-less Order/Payment is completely untouched — zero
+ * behavior change for every non-marketplace caller of this driver.
  */
 class StripeDriver implements MoneyInDriver
 {
@@ -46,6 +61,14 @@ class StripeDriver implements MoneyInDriver
 
         if ($order->cadence === Cadence::Recurring) {
             return $this->subscribe($order, $merchant);
+        }
+
+        // Ticket 06: an Order carrying a Split is ALWAYS the marketplace checkout's one shared
+        // entry point (a first-party $0-fee sale included — see Split's own docblock on a null
+        // payeeRef) — never the legacy SDK path below, which stays byte-for-byte what it was
+        // before this ticket for every non-marketplace Order.
+        if ($order->split !== null) {
+            return $this->payWithSplit($order, $merchant);
         }
 
         // An off-session confirm can hard-decline (card_declined family) or demand a
@@ -122,6 +145,182 @@ class StripeDriver implements MoneyInDriver
     }
 
     /**
+     * Ticket 06's split-payment charge path — the marketplace checkout's ONE shared entry point,
+     * for a paid third-party listing (a real `payeeRef`) and a first-party $0-fee listing (a null
+     * `payeeRef`) alike; see `pay()`'s own dispatch and `Split`'s docblock. Builds the exact same
+     * `intentParams()` the legacy SDK path builds (vault/billing-address handling included), then
+     * posts them to Stripe's `/v1/payment_intents` over `Http` instead of the SDK — see this
+     * class's own docblock for why.
+     */
+    private function payWithSplit(Order $order, Merchant $merchant): Payment
+    {
+        $response = $this->stripeHttp($merchant)->post(
+            'https://api.stripe.com/v1/payment_intents',
+            $this->intentParams($order, $merchant),
+        );
+
+        if ($response->failed()) {
+            return $this->failedSplitPayment($order, $merchant, $response);
+        }
+
+        return new Payment(
+            id: (string) Str::uuid(),
+            orderId: $order->id,
+            amount: $order->total,
+            status: self::statusFromIntent((string) $response->json('status')),
+            driver: $this->name(),
+            providerRef: (string) $response->json('id'),
+            merchantId: $merchant->id,
+            split: $order->split,
+        );
+    }
+
+    /**
+     * The `Http`-path mirror of {@see failedPayment()} — normalizes a Stripe error *response body*
+     * (rather than an SDK `CardException`) into a neutral, non-success Payment.
+     */
+    private function failedSplitPayment(Order $order, Merchant $merchant, Response $response): Payment
+    {
+        $error = (array) ($response->json('error') ?? []);
+        $code = $error['decline_code'] ?? $error['code'] ?? 'card_error';
+
+        $status = ($error['code'] ?? null) === 'authentication_required'
+            ? PaymentStatus::RequiresAction
+            : PaymentStatus::Failed;
+
+        return new Payment(
+            id: (string) Str::uuid(),
+            orderId: $order->id,
+            amount: $order->total,
+            status: $status,
+            driver: $this->name(),
+            providerRef: $error['payment_intent']['id'] ?? null,
+            merchantId: $merchant->id,
+            errorCode: $code,
+            split: $order->split,
+        );
+    }
+
+    /**
+     * Ticket 06 — refund a split-carrying Payment, pro-rating BOTH sides of the split rather than
+     * letting either absorb a partial refund entirely: `refund_application_fee` lets Stripe refund
+     * the platform's application fee proportionally to the refunded amount (Stripe's own documented
+     * destination-charge refund behavior), and `reverse_transfer` + an EXPLICITLY computed
+     * `transfer_reversal_amount` reclaims the matching proportion of the Seller's transfer — the
+     * explicit number (not just the boolean flags) is this method's own arithmetic, asserted
+     * directly by the feature test rather than trusted to happen invisibly on Stripe's side.
+     *
+     * A Payment with no Split (or a Split with no `payeeRef` — a first-party sale) still goes
+     * through this same method when the caller knows it dealt in Splits at charge time; it simply
+     * never adds the split-specific params, so it degrades to a plain refund.
+     *
+     * Not part of {@see MoneyInDriver} — deliberately a StripeDriver-only extension a marketplace
+     * caller reaches by type-hinting this concrete driver, keeping the neutral `refund()` contract
+     * (and every other MoneyInDriver implementer, e.g. FakeDriver) completely untouched.
+     */
+    public function refundWithSplit(Payment $payment, ?Money $amount = null): Refund
+    {
+        $merchant = $this->merchants->forPayment($payment);
+        $amount ??= $payment->amount;
+
+        $params = array_filter([
+            'payment_intent' => $payment->providerRef,
+            'amount' => $amount->minorUnits,
+        ], fn ($value) => $value !== null);
+
+        if ($payment->split !== null && $payment->split->payeeRef !== null) {
+            $transferPortion = $payment->amount->minorUnits - $payment->split->platformFee->minorUnits;
+
+            $params['refund_application_fee'] = 'true';
+            $params['reverse_transfer'] = 'true';
+            $params['transfer_reversal_amount'] = self::proratedMinorUnits(
+                $transferPortion,
+                $amount->minorUnits,
+                $payment->amount->minorUnits,
+            );
+        }
+
+        $response = $this->stripeHttp($merchant)->post('https://api.stripe.com/v1/refunds', $params)->throw();
+
+        return new Refund(
+            id: (string) Str::uuid(),
+            paymentId: $payment->id,
+            amount: $amount,
+            driver: $this->name(),
+            providerRef: (string) $response->json('id'),
+        );
+    }
+
+    /**
+     * Ticket 06's `charge.dispute.created` reaction: reverses the Stripe transfer for the disputed
+     * charge, pro-rated to the disputed amount — per the marketplace's own payout-gateway
+     * provisioning (ticket 05), Splicewire ("the application") is liable for fees/losses on every
+     * Seller's payee account, so a dispute already debits the PLATFORM's own Stripe balance; this
+     * reclaims the matching proportion from the Seller's side rather than leaving the platform to
+     * absorb it alone. Looks the live charge up (`GET /v1/charges/{id}`) rather than trusting
+     * anything cached, since the dispute payload itself carries no transfer id — a charge with no
+     * `transfer` (never a split charge to begin with) is a no-op.
+     */
+    public function reverseTransferForDispute(Dispute $dispute, ?Merchant $merchant = null): void
+    {
+        $merchant ??= $this->merchants->forPayment(new Payment(
+            id: (string) Str::uuid(),
+            orderId: '',
+            amount: Money::zero($dispute->amount->currency),
+            status: PaymentStatus::Succeeded,
+            driver: $this->name(),
+        ));
+
+        $charge = $this->stripeHttp($merchant)->get(
+            "https://api.stripe.com/v1/charges/{$dispute->chargeRef}",
+        )->throw();
+
+        $transferId = $charge->json('transfer');
+
+        if ($transferId === null) {
+            return;
+        }
+
+        $chargeAmount = (int) $charge->json('amount');
+        $applicationFee = (int) ($charge->json('application_fee_amount') ?? 0);
+        $transferPortion = $chargeAmount - $applicationFee;
+
+        $reversalAmount = self::proratedMinorUnits($transferPortion, $dispute->amount->minorUnits, $chargeAmount);
+
+        $this->stripeHttp($merchant)->post(
+            "https://api.stripe.com/v1/transfers/{$transferId}/reversals",
+            ['amount' => $reversalAmount],
+        )->throw();
+    }
+
+    /**
+     * The one place this driver's split-payment arithmetic lives: `$whole` prorated to the same
+     * fraction `$portion` is of `$total`, floored to the nearest minor unit (never over-refund/
+     * over-reverse). `$total` of 0 (a $0 Order — never reachable in practice, since a Split's own
+     * platformFee is 0 in that case too) short-circuits to 0 rather than dividing by zero.
+     */
+    private static function proratedMinorUnits(int $whole, int $portion, int $total): int
+    {
+        if ($total === 0 || $whole === 0) {
+            return 0;
+        }
+
+        return intdiv($whole * $portion, $total);
+    }
+
+    /**
+     * A pre-configured `Http` pending request bound to the Merchant's own Stripe secret — pulled
+     * from the SAME {@see StripeClientFactory} seam the SDK path uses (`getApiKey()` is the
+     * `stripe-php` client's own accessor for the secret it was constructed with), so a tenancy-
+     * aware host's `StripeClientFactory` rebinding covers this transport too, with no separate
+     * config to keep in sync.
+     */
+    private function stripeHttp(Merchant $merchant): PendingRequest
+    {
+        return Http::asForm()->withToken((string) $this->clients->for($merchant)->getApiKey());
+    }
+
+    /**
      * The PaymentIntent params for a one-off Order. A bare Order charges a fresh card
      * confirmed on the client; an Order that references a saved card, opts to save the
      * card, or carries a billing address layers the vault fields on top.
@@ -182,6 +381,15 @@ class StripeDriver implements MoneyInDriver
             $params['payment_method_data'] = [
                 'billing_details' => self::billingDetails($order->billingAddress),
             ];
+        }
+
+        // Ticket 06: the destination-charge params, ONLY when the Split actually names a payee —
+        // a first-party ($0-fee) Split (null payeeRef) intentionally adds neither key, so that
+        // charge is a plain PaymentIntent with the fee forced to zero by omission, not by a
+        // separate code path (see `pay()`'s own dispatch + Split's docblock).
+        if ($order->split !== null && $order->split->payeeRef !== null) {
+            $params['application_fee_amount'] = $order->split->platformFee->minorUnits;
+            $params['transfer_data'] = ['destination' => $order->split->payeeRef];
         }
 
         return $params;

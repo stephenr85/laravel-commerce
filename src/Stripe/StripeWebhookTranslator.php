@@ -3,6 +3,7 @@
 namespace Rushing\Commerce\Stripe;
 
 use Illuminate\Support\Str;
+use Rushing\Commerce\Data\Dispute;
 use Rushing\Commerce\Data\InvoiceRef;
 use Rushing\Commerce\Data\Money;
 use Rushing\Commerce\Data\Payment;
@@ -133,6 +134,35 @@ class StripeWebhookTranslator
                 amount: $amount,
             ),
             beneficiaryId: $party,
+        );
+    }
+
+    /**
+     * `charge.dispute.created` → a neutral {@see Dispute}, or null otherwise. Pure translation —
+     * no Stripe API call happens here (unlike a driver's own reversal action, which does). Null
+     * when the payload isn't a dispute-creation event or is missing the charge reference/amount a
+     * caller needs to act on it.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    public function dispute(array $payload): ?Dispute
+    {
+        if (($payload['type'] ?? null) !== 'charge.dispute.created') {
+            return null;
+        }
+
+        $object = $payload['data']['object'] ?? [];
+        $chargeRef = $object['charge'] ?? null;
+
+        if ($chargeRef === null || ! isset($object['amount'])) {
+            return null;
+        }
+
+        return new Dispute(
+            chargeRef: (string) $chargeRef,
+            amount: Money::of((int) $object['amount'], strtoupper((string) ($object['currency'] ?? 'usd'))),
+            paymentIntentRef: $object['payment_intent'] ?? null,
+            reason: $object['reason'] ?? null,
         );
     }
 }

@@ -27,6 +27,10 @@ class Payment extends Data implements SchemaIdentity
         // (e.g. insufficient_funds | authentication_required) — null on success.
         // Lets a host classify an off-session failure without a provider-specific type.
         public ?string $errorCode = null,
+        // Ticket 06: the {@see Split} this Payment was captured under, when its originating
+        // Order carried one — carried forward so a later refund/dispute reversal can prorate
+        // against the SAME split, without a caller having to keep its own side-table.
+        public ?Split $split = null,
     ) {}
 
     public function succeeded(): bool
