@@ -37,13 +37,19 @@ use Spatie\LaravelPackageTools\PackageServiceProvider;
  * tower 92919bb) — see {@see self::configurePackage()}. The 5 tables here (redemptions,
  * credit_entries, auto_reload_configs, auto_reload_attempts, the two ACP tables) key off
  * an opaque `party_id`/`payer_id` string, never a `tenant_id` FK — this engine is
- * deliberately tenant-blind (it doesn't depend on laravel-beam-tenancy at all). They ship
- * FLAT, unclassified into `shared/`/`tenant/`: whether a consuming host runs them centrally
- * (a single-tenant consumer) or republishes them into its own per-tenant migration set (a
- * multi-tenant broker) is a HOST-side placement decision, not something this package bakes
- * in — publish-only makes that decision fall naturally out of where `vendor:publish` copies
- * land, so the old `commerce.register_migrations` config toggle (auto-load vs. don't) is
- * dropped as redundant.
+ * deliberately tenant-blind (it doesn't depend on laravel-beam-tenancy at all). They are
+ * UBIQUITOUS (central + every tenant — billing applies to both tenant-scoped and
+ * central-level parties), so each publishes to the SINGLE `shared/…` destination declared
+ * under `->hasMigrations([...])`, not a duplicated flat+tenant pair and not a host-side
+ * placement decision: a central-only table would let tenant-context code silently fall
+ * back through Postgres's `search_path` to the central copy (the same implicit-fallback
+ * hazard a missing tenant `users` table produced elsewhere in this estate). beam-tenancy's
+ * `registerSharedMigrationsPath()` is what runs that one host directory in both the central
+ * `migrate` pass and Stancl's tenant pass; this package composes that mechanism purely by
+ * publishing into the same `shared/` destination the host already registers (mirrors
+ * beam-threads' own conversion, 36b2087). Since placement is now fixed rather than
+ * host-decided, the old `commerce.register_migrations` config toggle (auto-load vs. don't)
+ * stays dropped as redundant.
  *
  * The former `register()`/`boot()` bodies move to `packageRegistered()`/`packageBooted()` —
  * `configurePackage()` only configures, it doesn't replace the boot sequence.
@@ -55,11 +61,11 @@ class CommerceServiceProvider extends PackageServiceProvider
         $package
             ->name('laravel-commerce')
             ->hasMigrations([
-                'create_commerce_redemptions_table',
-                'create_commerce_credit_entries_table',
-                'create_commerce_auto_reload_configs_table',
-                'create_commerce_auto_reload_attempts_table',
-                'create_commerce_acp_tables',
+                'shared/create_commerce_redemptions_table',
+                'shared/create_commerce_credit_entries_table',
+                'shared/create_commerce_auto_reload_configs_table',
+                'shared/create_commerce_auto_reload_attempts_table',
+                'shared/create_commerce_acp_tables',
             ]);
     }
 
