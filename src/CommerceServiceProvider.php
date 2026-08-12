@@ -145,14 +145,21 @@ class CommerceServiceProvider extends PackageServiceProvider
     }
 
     /**
-     * Self-describe this engine's three remaining registry singletons into beam-core's `ManifestIndex` — the
+     * Self-describe EVERY registry-shaped singleton this engine binds into beam-core's `ManifestIndex` — the
      * index of indexes `splicewire:beam:manifests --json` renders (particle-doctrine-convergence, ticket 13).
      *
      * This package is beam-blind (it does not depend on laravel-beam, deliberately — it is tenant-blind and
      * rail-blind too), so both the class and the binding are guarded: outside a beam host, and in this
-     * package's own test suite, nothing here runs. `AcpFeedRegistry` was already described by the host that
-     * composes this engine, which is what made the package a member of the index and therefore held to
-     * describing the rest — the three below were the gap that membership exposed.
+     * package's own test suite, nothing here runs.
+     *
+     * "Every", not "the ones we noticed", is the whole contract, and this method has already been wrong about
+     * it once. Ticket 13 landed the first three on the belief that `AcpFeedRegistry` was already in the index,
+     * described by the host that composes this engine. It was not — nothing described it, and the three
+     * descriptors below were themselves what opted this package INTO the index and so into the completeness
+     * ratchet `UndescribedRegistryAudit` gates on. The gate was therefore red the moment ticket 13 shipped,
+     * naming the one registry the ticket had assumed was covered. Adding a `singleton()` here without a
+     * matching `describe()` below fails the build, by design: an index you cannot trust to be complete for
+     * the packages it lists is not an index.
      */
     protected function describeManifests(): void
     {
@@ -198,6 +205,27 @@ class CommerceServiceProvider extends PackageServiceProvider
             registerHint: 'resolve the singleton and register(\'yourstrategy\', new YourStrategy) from your provider',
             where: PricingStrategyRegistry::class,
             package: $pkg, order: 62,
+        ));
+
+        $index->describe(new ManifestDescriptor(
+            name: 'AcpFeedRegistry',
+            of: 'ACP product-feed projectors keyed by the catalog Data class each handles — the discovery half of the agentic-checkout protocol (the engine ships none)',
+            // SingletonAccumulator: bound as a bare `singleton(AcpFeedRegistry::class)` with no config array
+            // and no constructor seed, so the only way in is a host resolving the shared instance and calling
+            // `register($projector)` from its own provider. The projector carries its own key (`subject()`),
+            // so there is not even a key to put in config.
+            seam: ManifestSeam::SingletonAccumulator,
+            // PickOne, and the reasoning is the interesting part here, because `feed()` LOOKS like a fold and
+            // is not one. `feed(iterable $items)` fans over the INPUTS, not over the registered entries: each
+            // item is dispatched by `$data::class` to exactly ONE projector via `for()`, which throws on a
+            // miss. So no read of this registry ever engages more than one projector for a given value —
+            // ComposeMany (ticket 11's choice, for a registry whose read folds every match into one result)
+            // and RunAll (for one whose read mounts something per entry) are both wrong. Arity is about how
+            // many ENTRIES a resolution engages; the answer is one, keyed, with no default.
+            arity: ManifestArity::PickOne,
+            registerHint: 'resolve the singleton and register(new YourProjector) from your provider — the projector names its own key via subject(); an unregistered Data class throws rather than falling back',
+            where: AcpFeedRegistry::class,
+            package: $pkg, order: 63,
         ));
     }
 }
