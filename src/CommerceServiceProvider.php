@@ -26,6 +26,10 @@ use Rushing\Commerce\Stripe\StripeClientFactory;
 use Rushing\Commerce\Support\NullPaymentMethodResolver;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
+use Splicewire\Beam\Manifest\ManifestArity;
+use Splicewire\Beam\Manifest\ManifestDescriptor;
+use Splicewire\Beam\Manifest\ManifestIndex;
+use Splicewire\Beam\Manifest\ManifestSeam;
 
 /**
  * Registers the shared commerce engine. The money-in module (manager + `MoneyIn`
@@ -136,5 +140,64 @@ class CommerceServiceProvider extends PackageServiceProvider
                 Console\StripeListenCommand::class,
             ]);
         }
+
+        $this->describeManifests();
+    }
+
+    /**
+     * Self-describe this engine's three remaining registry singletons into beam-core's `ManifestIndex` — the
+     * index of indexes `splicewire:beam:manifests --json` renders (particle-doctrine-convergence, ticket 13).
+     *
+     * This package is beam-blind (it does not depend on laravel-beam, deliberately — it is tenant-blind and
+     * rail-blind too), so both the class and the binding are guarded: outside a beam host, and in this
+     * package's own test suite, nothing here runs. `AcpFeedRegistry` was already described by the host that
+     * composes this engine, which is what made the package a member of the index and therefore held to
+     * describing the rest — the three below were the gap that membership exposed.
+     */
+    protected function describeManifests(): void
+    {
+        if (! class_exists(ManifestIndex::class) || ! $this->app->bound(ManifestIndex::class)) {
+            return;
+        }
+
+        $index = $this->app->make(ManifestIndex::class);
+        $pkg = 'rushing/laravel-commerce';
+
+        $index->describe(new ManifestDescriptor(
+            name: 'MoneyInManager',
+            of: 'money-in drivers (fake · stripe) — the rail a party collects through',
+            // A Laravel `Manager` IS a registry at a seam, and the seam is its `extend()` hook: a host adds a
+            // driver by resolving the shared manager and extending it, exactly as with any accumulator. The
+            // config key only SELECTS among registered drivers; it does not register one, so ConfigSource
+            // would point a host at the wrong file.
+            seam: ManifestSeam::SingletonAccumulator,
+            // PickOne: `commerce.driver` names the single driver a resolution returns, defaulting to `fake`.
+            arity: ManifestArity::PickOne,
+            registerHint: 'resolve the manager and call extend(\'yourdriver\', fn ($app) => new YourDriver) from your provider; select it with commerce.driver',
+            where: MoneyInManager::class,
+            package: $pkg, order: 60,
+        ));
+
+        $index->describe(new ManifestDescriptor(
+            name: 'ComponentRegistry',
+            of: 'billing components by type — the host vocabulary the bill composer resolves (the engine ships none)',
+            seam: ManifestSeam::SingletonAccumulator,
+            // PickOne, and a miss THROWS: a bill line naming a component the host never registered is a
+            // configuration error, not something to paper over with a default component.
+            arity: ManifestArity::PickOne,
+            registerHint: 'resolve the singleton and register($type, fn () => new YourComponent) from your provider',
+            where: ComponentRegistry::class,
+            package: $pkg, order: 61,
+        ));
+
+        $index->describe(new ManifestDescriptor(
+            name: 'PricingStrategyRegistry',
+            of: 'pricing strategies by name; the engine pre-registers `linear` and reserves the seam for non-linear ones',
+            seam: ManifestSeam::SingletonAccumulator,
+            arity: ManifestArity::PickOne,
+            registerHint: 'resolve the singleton and register(\'yourstrategy\', new YourStrategy) from your provider',
+            where: PricingStrategyRegistry::class,
+            package: $pkg, order: 62,
+        ));
     }
 }
