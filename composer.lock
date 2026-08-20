@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "68ce06abf4c4dbc7afab8c020d083802",
+    "content-hash": "d5c048389fe6fb49d10d879a36802ab0",
     "packages": [
         {
             "name": "brick/math",
@@ -3565,7 +3565,7 @@
             "dist": {
                 "type": "path",
                 "url": "../laravel-doctor",
-                "reference": "fe2b36a9e4470ca0fa561968e8b6c82f626347ec"
+                "reference": "ce33e9af21254a737e9554270237ec65787abb0b"
             },
             "require": {
                 "illuminate/support": "^11.0|^12.0|^13.0",
@@ -3688,6 +3688,66 @@
                 "strategy"
             ],
             "time": "2026-07-07T16:27:04+00:00"
+        },
+        {
+            "name": "rushing/laravel-schema-convergence",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "../laravel-schema-convergence",
+                "reference": "c53e75636fb51d2c3f7ac74a9c9c46d105bfc1bb"
+            },
+            "require": {
+                "illuminate/database": "^11.0|^12.0|^13.0",
+                "illuminate/support": "^11.0|^12.0|^13.0",
+                "php": "^8.2"
+            },
+            "require-dev": {
+                "laravel/pint": "^1.0",
+                "orchestra/testbench": "^9.0|^10.0|^11.0",
+                "phpunit/phpunit": "^11.0|^12.0"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Rushing\\SchemaConvergence\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Rushing\\SchemaConvergence\\Tests\\": "tests/"
+                }
+            },
+            "scripts": {
+                "pint": [
+                    "@php -d memory_limit=512M vendor/bin/pint"
+                ],
+                "test": [
+                    "@php vendor/bin/phpunit"
+                ]
+            },
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Stephen Rushing",
+                    "email": "stephenr85@gmail.com"
+                }
+            ],
+            "description": "Convergent migration guards: a published `create_*` migration that creates the table when it is absent, adds the columns it is missing, and refuses — writing nothing — when a column already exists with an incompatible shape. Replaces the bare `Schema::hasTable($t) → return` guard, whose success report is a lie whenever another package won the filename race with a different shape.",
+            "keywords": [
+                "convergence",
+                "idempotent",
+                "laravel",
+                "migrations",
+                "publishing",
+                "schema"
+            ],
+            "transport-options": {
+                "symlink": true,
+                "relative": true
+            }
         },
         {
             "name": "schemastud/laravel-data-schemas",
@@ -10542,6 +10602,7 @@
     "minimum-stability": "dev",
     "stability-flags": {
         "rushing/laravel-doctor": 20,
+        "rushing/laravel-schema-convergence": 20,
         "schemastud/laravel-data-schemas": 20
     },
     "prefer-stable": true,

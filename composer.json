@@ -79,6 +79,13 @@
             "options": {
                 "symlink": true
             }
+        },
+        {
+            "type": "path",
+            "url": "../laravel-schema-convergence",
+            "options": {
+                "symlink": true
+            }
         }
     ],
     "minimum-stability": "dev",
