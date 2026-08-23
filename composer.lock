@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "d5c048389fe6fb49d10d879a36802ab0",
+    "content-hash": "7ac786540e5bf2ea6a75075f1819f3aa",
     "packages": [
         {
             "name": "brick/math",
@@ -3695,7 +3695,7 @@
             "dist": {
                 "type": "path",
                 "url": "../laravel-schema-convergence",
-                "reference": "c53e75636fb51d2c3f7ac74a9c9c46d105bfc1bb"
+                "reference": "c608e0ee682fa7b57c49a15419fac95c29a8d0e7"
             },
             "require": {
                 "illuminate/database": "^11.0|^12.0|^13.0",
@@ -3743,6 +3743,70 @@
                 "migrations",
                 "publishing",
                 "schema"
+            ],
+            "transport-options": {
+                "symlink": true,
+                "relative": true
+            }
+        },
+        {
+            "name": "rushing/php-popcorn",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "../php-popcorn",
+                "reference": "e8cce4f0c389b95e843830b29b3d2d2998e28681"
+            },
+            "require": {
+                "php": "^8.3",
+                "symfony/finder": "^6.0|^7.0|^8.0"
+            },
+            "require-dev": {
+                "laravel/pint": "^1.0",
+                "pestphp/pest": "^3.0"
+            },
+            "type": "library",
+            "extra": {
+                "package-topology": {
+                    "mustNotRequire": [
+                        "illuminate/*"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Rushing\\Popcorn\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Rushing\\Popcorn\\Tests\\": "tests/"
+                }
+            },
+            "scripts": {
+                "pint": [
+                    "@php -d memory_limit=512M vendor/bin/pint"
+                ],
+                "test": [
+                    "@php vendor/bin/pest"
+                ]
+            },
+            "license": [
+                "proprietary"
+            ],
+            "authors": [
+                {
+                    "name": "Stephen Rushing",
+                    "email": "stephenr85@gmail.com"
+                }
+            ],
+            "description": "Framework-free core for transport-agnostic invocable capabilities and self-validating strategy ladders — the invocable kernel behind rushing/laravel-popcorn.",
+            "keywords": [
+                "binding",
+                "capability",
+                "invocable",
+                "registry",
+                "strategy"
             ],
             "transport-options": {
                 "symlink": true,
@@ -10603,6 +10667,7 @@
     "stability-flags": {
         "rushing/laravel-doctor": 20,
         "rushing/laravel-schema-convergence": 20,
+        "rushing/php-popcorn": 20,
         "schemastud/laravel-data-schemas": 20
     },
     "prefer-stable": true,

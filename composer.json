@@ -24,10 +24,11 @@
         "illuminate/database": "^11.0|^12.0|^13.0",
         "illuminate/support": "^11.0|^12.0|^13.0",
         "rushing/laravel-doctor": "dev-main",
+        "rushing/laravel-schema-convergence": "dev-main",
+        "rushing/php-popcorn": "dev-main",
         "schemastud/laravel-data-schemas": "dev-main",
         "spatie/laravel-data": "^4.0|^5.0",
-        "spatie/laravel-package-tools": "^1.16",
-        "rushing/laravel-schema-convergence": "dev-main"
+        "spatie/laravel-package-tools": "^1.16"
     },
     "require-dev": {
         "orchestra/testbench": "^9.0|^10.0|^11.0",
@@ -80,6 +81,10 @@
         {
             "type": "git",
             "url": "https://github.com/stephenr85/laravel-schema-convergence.git"
+        },
+        {
+            "type": "git",
+            "url": "https://github.com/stephenr85/php-popcorn.git"
         }
     ],
     "minimum-stability": "dev",
