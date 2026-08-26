@@ -24,6 +24,7 @@ use Rushing\Commerce\Stripe\ConfigMerchantResolver;
 use Rushing\Commerce\Stripe\ConfigStripeClients;
 use Rushing\Commerce\Stripe\StripeClientFactory;
 use Rushing\Commerce\Support\NullPaymentMethodResolver;
+use Rushing\Popcorn\Registries\RegistryIndex;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 
@@ -114,6 +115,8 @@ class CommerceServiceProvider extends PackageServiceProvider
 
     public function packageBooted(): void
     {
+        $this->describeRegistries();
+
         // The ACP protocol routes ship as brand-blind definitions; the host mounts
         // them inside its own public tenant group (prefix + tenancy middleware) by
         // calling Route::commerceAcpRoutes(). Mirrors the beam-commerce macro seam.
@@ -139,4 +142,20 @@ class CommerceServiceProvider extends PackageServiceProvider
 
     }
 
+    /**
+     * Describe this package's four registries into the shared index — registry-kernel ticket 38.
+     *
+     * Declaring and indexing are two acts (21 D1), and an owner registers DOWN into the index from its
+     * own boot(); the index never reaches up. Booted rather than registered because `describe()` forces
+     * each singleton to construct, and `MoneyInManager`'s construction reads the container.
+     */
+    private function describeRegistries(): void
+    {
+        $index = $this->app->make(RegistryIndex::class);
+
+        $index->describe($this->app->make(MoneyInManager::class), by: self::class);
+        $index->describe($this->app->make(ComponentRegistry::class), by: self::class);
+        $index->describe($this->app->make(PricingStrategyRegistry::class), by: self::class);
+        $index->describe($this->app->make(AcpFeedRegistry::class), by: self::class);
+    }
 }

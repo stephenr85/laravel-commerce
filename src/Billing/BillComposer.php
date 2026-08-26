@@ -37,7 +37,7 @@ class BillComposer
 
             $config = array_merge($baseConfig, $override);
 
-            $lineItems[] = $this->registry->resolve($type)->calculate($period, $config);
+            $lineItems[] = $this->registry->make($type)->calculate($period, $config);
         }
 
         $total = array_sum(array_map(fn (BillingLineItem $item): float => $item->amountUsd, $lineItems));

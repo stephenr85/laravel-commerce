@@ -24,6 +24,7 @@
         "illuminate/database": "^11.0|^12.0|^13.0",
         "illuminate/support": "^11.0|^12.0|^13.0",
         "rushing/laravel-doctor": "dev-main",
+        "rushing/laravel-popcorn": "dev-main",
         "rushing/laravel-schema-convergence": "dev-main",
         "rushing/php-popcorn": "dev-main",
         "schemastud/laravel-data-schemas": "dev-main",

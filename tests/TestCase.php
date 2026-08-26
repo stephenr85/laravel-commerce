@@ -6,6 +6,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Orchestra\Testbench\TestCase as Orchestra;
 use Rushing\Commerce\CommerceServiceProvider;
+use Rushing\Popcorn\Laravel\PopcornServiceProvider;
 use Spatie\LaravelData\LaravelDataServiceProvider;
 
 abstract class TestCase extends Orchestra
@@ -14,6 +15,10 @@ abstract class TestCase extends Orchestra
     {
         return [
             LaravelDataServiceProvider::class,
+            // Spine step 9 of the registry-kernel sweep: `RegistryIndex` is auto-resolvable, so a
+            // harness that omits this provider gets a FRESH index on every make() — every describe()
+            // lands on a throwaway and the suite stays green over an empty index (27 D3 / 37 finding 2).
+            PopcornServiceProvider::class,
             CommerceServiceProvider::class,
         ];
     }
