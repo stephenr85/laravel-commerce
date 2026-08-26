@@ -29,10 +29,11 @@ use Spatie\LaravelData\Support\Validation\ValidationContext;
 class CheckoutSessionCreateInput extends Data
 {
     /**
-     * @param  array<int, array<string, mixed>>  $items
+     * @param  array<int, CheckoutItemInput>  $items
      */
     public function __construct(
-        #[Description('The initial list of items to initiate the checkout session. Each entry carries `id` — the id of a piece of merchandise that can be purchased — and an optional `quantity` (the quantity of the item for fulfillment, defaulting to 1). This implementation also accepts the legacy key `item_ref` in place of `id`.')]
+        #[DataCollectionOf(CheckoutItemInput::class)]
+        #[Description('The initial list of items to initiate the checkout session.')]
         public array $items,
         #[Description('ISO 4217 currency code the session prices in. A protocol extension, not part of the ACP request schema; omitted means the merchant default.')]
         public string|Optional|null $currency = null,
@@ -69,10 +70,9 @@ class CheckoutSessionCreateInput extends Data
      */
     public function engineItems(): array
     {
-        return array_map(static function (array $item): array {
-            $item['item_ref'] = (string) ($item['id'] ?? $item['item_ref'] ?? '');
-
-            return $item;
-        }, $this->items);
+        return array_map(static fn (CheckoutItemInput $item): array => [
+            'item_ref' => $item->ref(),
+            'quantity' => $item->quantity ?? 1,
+        ], $this->items);
     }
 }
