@@ -2,7 +2,6 @@
 
 namespace Rushing\Commerce\Acp\Data;
 
-use Rushing\Commerce\Data\BillingAddress;
 use Schemastud\DataSchemas\Attributes\Description;
 use Spatie\LaravelData\Data;
 
@@ -19,7 +18,7 @@ class CheckoutPaymentDataInput extends Data
         #[Description('String value representing the payment processor.')]
         public string $provider,
         #[Description('Optional billing address associated with the payment method, used for address verification and tax.')]
-        public ?BillingAddress $billing_address = null,
+        public ?CheckoutBillingAddressInput $billing_address = null,
     ) {}
 
     /** The engine-facing delegate payment this object describes. */
@@ -28,7 +27,7 @@ class CheckoutPaymentDataInput extends Data
         return new DelegatePayment(
             token: $this->token,
             provider: $this->provider,
-            billingAddress: $this->billing_address,
+            billingAddress: $this->billing_address?->toBillingAddress(),
         );
     }
 }
