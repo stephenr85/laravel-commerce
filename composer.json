@@ -31,14 +31,16 @@
         "spatie/laravel-package-tools": "^1.16"
     },
     "require-dev": {
+        "laravel/pint": "^1.0",
         "orchestra/testbench": "^9.0|^10.0|^11.0",
         "pestphp/pest": "^2.0|^3.0",
-        "laravel/pint": "^1.0",
+        "rushing/laravel-data-schemas-scribe": "*",
         "stripe/stripe-php": "^13.0|^14.0|^15.0|^16.0",
         "wikimedia/composer-merge-plugin": "^2.1"
     },
     "suggest": {
-        "laravel/cashier": "Required only for the `stripe` money-in driver (subscriptions + PaymentIntents). A cost-only tenant using the metering plane does not need it."
+        "laravel/cashier": "Required only for the `stripe` money-in driver (subscriptions + PaymentIntents). A cost-only tenant using the metering plane does not need it.",
+        "rushing/laravel-data-schemas-scribe": "Resolves the #[RequestFromData] declarations on the ACP HTTP boundary so Scribe publishes the protocol bodies."
     },
     "autoload": {
         "psr-4": {

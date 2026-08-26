@@ -128,3 +128,25 @@ it('is registered under brand-blind names at the configured root path', function
     $create = $routes->first(fn ($r) => $r->getName() === 'commerce.checkout.create');
     expect($create->uri())->toBe('agentic-commerce/checkout_sessions');
 });
+
+it('accepts the ACP spec spelling `id` for a line item, and still accepts the legacy `item_ref`', function () {
+    // The spec names the per-item catalog reference `id` ("Id of a piece of merchandise that can be
+    // purchased"); this implementation shipped `item_ref` and required it, so a compliant agent's
+    // request 422'd. Both spellings resolve the same offer now (api-surface-coherence ticket 64).
+    $spec = $this->postJson('agentic-commerce/checkout_sessions', [
+        'items' => [['id' => 'demo-offer', 'quantity' => 2]],
+    ]);
+
+    $spec->assertCreated()->assertJsonPath('lineItems.0.itemRef', 'demo-offer');
+
+    $legacy = $this->postJson('agentic-commerce/checkout_sessions', [
+        'items' => [['item_ref' => 'demo-offer', 'quantity' => 2]],
+    ]);
+
+    $legacy->assertCreated()->assertJsonPath('lineItems.0.itemRef', 'demo-offer');
+
+    // Neither key present is still a 422 — the widening is required_without, not optional.
+    $this->postJson('agentic-commerce/checkout_sessions', [
+        'items' => [['quantity' => 2]],
+    ])->assertStatus(422);
+});

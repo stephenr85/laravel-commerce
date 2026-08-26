@@ -8,34 +8,40 @@ use Illuminate\Routing\Controller;
 use Rushing\Commerce\Acp\AgenticCheckout;
 use Rushing\Commerce\Acp\Data\AgentProvenance;
 use Rushing\Commerce\Acp\Data\CheckoutSession;
-use Rushing\Commerce\Acp\Data\DelegatePayment;
+use Rushing\Commerce\Acp\Data\CheckoutSessionCompleteInput;
+use Rushing\Commerce\Acp\Data\CheckoutSessionCreateInput;
 use Rushing\Commerce\Acp\Exceptions\CheckoutException;
-use Rushing\Commerce\Data\BillingAddress;
+use Rushing\LaravelDataSchemasScribe\Attributes\RequestFromData;
 
 /**
  * The ACP Agentic Checkout HTTP boundary. Responses are the **protocol shape**
  * (the checkout session object itself), not the app's `{data}` envelope — an
  * external agent consumes ACP, not our SPA contract. The host mounts these under
  * its own public tenant group via `Route::commerceAcpRoutes()`.
+ *
+ * The request bodies are declared by {@see CheckoutSessionCreateInput} / {@see CheckoutSessionCompleteInput}
+ * so the published document and the generated client carry the protocol's own field names and prose
+ * (api-surface-coherence ticket 64). `#[RequestFromData]` ships in `rushing/laravel-data-schemas-scribe`,
+ * which is a **require-dev** here on purpose: this is an open foundation package and that dependency drags
+ * `knuckleswtf/scribe` in behind it, so a consumer that only wants the commerce engine should not pay for a
+ * documentation toolchain. A PHP attribute is inert unless something reflects it, so the annotation costs
+ * nothing at runtime in a host that lacks the package, and resolves normally in one that has it.
  */
 class CheckoutSessionController extends Controller
 {
     public function __construct(private AgenticCheckout $checkout) {}
 
+    #[RequestFromData(CheckoutSessionCreateInput::class)]
     public function create(Request $request): JsonResponse
     {
-        $validated = $request->validate([
-            'items' => ['required', 'array', 'min:1'],
-            'items.*.item_ref' => ['required', 'string'],
-            'items.*.quantity' => ['sometimes', 'integer', 'min:1'],
-            'currency' => ['sometimes', 'string', 'size:3'],
-        ]);
+        // Hydrated, never injected as a typed parameter (api-surface-coherence ticket 27).
+        $input = CheckoutSessionCreateInput::validateAndCreate($request);
 
         try {
             $session = $this->checkout->create(
-                items: $validated['items'],
+                items: $input->engineItems(),
                 provenance: $this->provenance($request),
-                currency: $validated['currency'] ?? null,
+                currency: is_string($input->currency) ? $input->currency : null,
             );
         } catch (CheckoutException $e) {
             return $this->error($e);
@@ -55,18 +61,10 @@ class CheckoutSessionController extends Controller
         return $this->session($session);
     }
 
+    #[RequestFromData(CheckoutSessionCompleteInput::class)]
     public function complete(Request $request, string $id): JsonResponse
     {
-        $validated = $request->validate([
-            'payment_data.token' => ['required', 'string'],
-            'payment_data.provider' => ['required', 'string'],
-        ]);
-
-        $payment = new DelegatePayment(
-            token: $validated['payment_data']['token'],
-            provider: $validated['payment_data']['provider'],
-            billingAddress: $this->billingAddress($request),
-        );
+        $payment = CheckoutSessionCompleteInput::validateAndCreate($request)->payment();
 
         try {
             $session = $this->checkout->complete($id, $payment, $this->provenance($request));
@@ -105,12 +103,5 @@ class CheckoutSessionController extends Controller
             userAgent: $request->userAgent(),
             requestId: $request->header('X-Request-Id') ?? $request->header('Request-Id'),
         );
-    }
-
-    private function billingAddress(Request $request): ?BillingAddress
-    {
-        $address = $request->input('payment_data.billing_address');
-
-        return is_array($address) ? BillingAddress::from($address) : null;
     }
 }
