@@ -3,6 +3,7 @@
 namespace Rushing\Commerce\Acp\Data;
 
 use Schemastud\DataSchemas\Attributes\Description;
+use Spatie\LaravelData\Attributes\MapInputName;
 use Spatie\LaravelData\Data;
 
 /**
@@ -18,7 +19,8 @@ class CheckoutPaymentDataInput extends Data
         #[Description('String value representing the payment processor.')]
         public string $provider,
         #[Description('Optional billing address associated with the payment method, used for address verification and tax.')]
-        public ?CheckoutBillingAddressInput $billing_address = null,
+        #[MapInputName('billing_address')]
+        public ?CheckoutBillingAddressInput $billingAddress = null,
     ) {}
 
     /** The engine-facing delegate payment this object describes. */
@@ -27,7 +29,7 @@ class CheckoutPaymentDataInput extends Data
         return new DelegatePayment(
             token: $this->token,
             provider: $this->provider,
-            billingAddress: $this->billing_address?->toBillingAddress(),
+            billingAddress: $this->billingAddress?->toBillingAddress(),
         );
     }
 }

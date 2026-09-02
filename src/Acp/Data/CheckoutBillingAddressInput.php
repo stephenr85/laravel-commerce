@@ -4,6 +4,7 @@ namespace Rushing\Commerce\Acp\Data;
 
 use Rushing\Commerce\Data\BillingAddress;
 use Schemastud\DataSchemas\Attributes\Description;
+use Spatie\LaravelData\Attributes\MapInputName;
 use Spatie\LaravelData\Data;
 
 /**
@@ -30,7 +31,8 @@ class CheckoutBillingAddressInput extends Data
         #[Description('State, province or region.')]
         public ?string $state = null,
         #[Description('Postal or ZIP code.')]
-        public ?string $postal_code = null,
+        #[MapInputName('postal_code')]
+        public ?string $postalCode = null,
         #[Description('Two-letter ISO 3166-1 country code.')]
         public ?string $country = null,
     ) {}
@@ -44,7 +46,7 @@ class CheckoutBillingAddressInput extends Data
             line2: $this->line2,
             city: $this->city,
             state: $this->state,
-            postalCode: $this->postal_code,
+            postalCode: $this->postalCode,
             country: $this->country,
         );
     }
