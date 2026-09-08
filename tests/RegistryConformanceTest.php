@@ -128,7 +128,7 @@ it('derives the ACP feed key from the projector subject and keeps the one-argume
 
 /*
  * What the derivation costs, paid rather than ignored: two subjects sharing a basename would silently
- * supersede under OnDuplicate::Supersede. They throw instead.
+ * supersede under OnKeyDuplicate::Supersede. They throw instead.
  */
 it('refuses two projectors whose subjects share a basename', function () {
     $registry = app(AcpFeedRegistry::class)->register(new AttributeAcpFeedProjector(OfferFeedFixture::class));

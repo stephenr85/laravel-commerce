@@ -13,8 +13,8 @@ use Rushing\Popcorn\Registries\BasicRegistry;
 use Rushing\Popcorn\Registries\Gated;
 use Rushing\Popcorn\Registries\IsRegistry;
 use Rushing\Popcorn\Registries\Key;
-use Rushing\Popcorn\Registries\OnDuplicate;
-use Rushing\Popcorn\Registries\Optionality;
+use Rushing\Popcorn\Registries\OnKeyDuplicate;
+use Rushing\Popcorn\Registries\PopulationRequirement;
 use Rushing\Popcorn\Registries\Registry;
 use Rushing\Popcorn\Registries\RegistryKey;
 
@@ -53,8 +53,8 @@ use Rushing\Popcorn\Registries\RegistryKey;
 #[IsRegistry(
     root: 'commerce.money-in.drivers',
     entryType: Closure::class,
-    onDuplicate: OnDuplicate::Supersede,
-    optionality: Optionality::Optional,
+    onKeyDuplicate: OnKeyDuplicate::Supersede,
+    populationRequirement: PopulationRequirement::Optional,
     description: 'money-in drivers (fake · stripe) — the rail a party collects through, as the factories that build them. A foreign-base registry: it extends Laravel\'s Manager, so it can extend nothing of ours — which is the deciding case for Registry being an interface rather than a base class. The seam is `extend()`; `commerce.driver` only SELECTS among registered drivers, it never registers one. Manager has no un-register: forgetDrivers() clears memoized instances, $customCreators survive — and so does this keyspace, deliberately, because a forgotten instance is not a forgotten registration.',
     order: 60,
 )]

@@ -8,7 +8,7 @@ use Rushing\Popcorn\Registries\BasicRegistry;
 use Rushing\Popcorn\Registries\Gated;
 use Rushing\Popcorn\Registries\IsRegistry;
 use Rushing\Popcorn\Registries\Key;
-use Rushing\Popcorn\Registries\OnDuplicate;
+use Rushing\Popcorn\Registries\OnKeyDuplicate;
 use Rushing\Popcorn\Registries\Registry;
 use Rushing\Popcorn\Registries\RegistryKey;
 use Spatie\LaravelData\Data;
@@ -36,7 +36,7 @@ use Spatie\LaravelData\Data;
 #[IsRegistry(
     root: 'commerce.acp.feeds',
     entryType: AcpFeedProjector::class,
-    onDuplicate: OnDuplicate::Supersede,
+    onKeyDuplicate: OnKeyDuplicate::Supersede,
     description: 'ACP product-feed projectors keyed by their subject Data class. feed() dispatches each input to one projector via for(), which throws on a miss. Subject classes provide the registration keys; basename collisions are rejected. The package ships no projectors.',
     order: 63,
 )]

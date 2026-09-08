@@ -9,8 +9,8 @@ use Rushing\Popcorn\Registries\BasicRegistry;
 use Rushing\Popcorn\Registries\Gated;
 use Rushing\Popcorn\Registries\IsRegistry;
 use Rushing\Popcorn\Registries\Key;
-use Rushing\Popcorn\Registries\OnDuplicate;
-use Rushing\Popcorn\Registries\Optionality;
+use Rushing\Popcorn\Registries\OnKeyDuplicate;
+use Rushing\Popcorn\Registries\PopulationRequirement;
 use Rushing\Popcorn\Registries\Registry;
 use Rushing\Popcorn\Registries\RegistryKey;
 
@@ -33,8 +33,8 @@ use Rushing\Popcorn\Registries\RegistryKey;
 #[IsRegistry(
     root: 'commerce.billing.components',
     entryType: Closure::class,
-    onDuplicate: OnDuplicate::Supersede,
-    optionality: Optionality::Optional,
+    onKeyDuplicate: OnKeyDuplicate::Supersede,
+    populationRequirement: PopulationRequirement::Optional,
     description: 'billing components by type — the host vocabulary the bill composer resolves (the engine ships none). A miss THROWS: a bill line naming a component the host never registered is a configuration error, not something to paper over with a default component. Optional, not Required, because a host that composes no bills legitimately registers nothing — emptiness and a miss are different states. The host vocabulary is PascalCase (`PerSeatFees`) and lives in PERSISTED Plan data, so it cannot be rekeyed; `Key::fromClass()` derives the segment (`per-seat-fees`) and the caller keeps speaking its own spelling at every door.',
     order: 61,
 )]

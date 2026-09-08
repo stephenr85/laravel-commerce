@@ -6,7 +6,7 @@ use Rushing\Popcorn\Registries\Authorizer;
 use Rushing\Popcorn\Registries\BasicRegistry;
 use Rushing\Popcorn\Registries\Gated;
 use Rushing\Popcorn\Registries\IsRegistry;
-use Rushing\Popcorn\Registries\OnDuplicate;
+use Rushing\Popcorn\Registries\OnKeyDuplicate;
 use Rushing\Popcorn\Registries\Registry;
 use Rushing\Popcorn\Registries\RegistryKey;
 
@@ -19,7 +19,7 @@ use Rushing\Popcorn\Registries\RegistryKey;
 #[IsRegistry(
     root: 'commerce.billing.pricing-strategies',
     entryType: PricingStrategy::class,
-    onDuplicate: OnDuplicate::Supersede,
+    onKeyDuplicate: OnKeyDuplicate::Supersede,
     description: 'pricing strategies by name; the engine pre-registers `linear` and reserves the seam for non-linear ones. Constructor-seeded AND registered into: `linear` ships pre-registered, so a host overriding it by name is doing so deliberately and Supersede is the honest policy. The seed goes through this class\'s own register(), which is safe here because register() does nothing but store — the RealmRegistry case (37) where a constructor seed tripped a flag set inside register() has no analogue.',
     order: 62,
 )]
