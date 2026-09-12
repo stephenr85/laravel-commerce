@@ -16,6 +16,26 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Fake rail
+    |--------------------------------------------------------------------------
+    |
+    | The `fake` driver's own settings. `decline_minor_units` is its MAGIC DECLINE
+    | AMOUNT — an Order totalling exactly this comes back Failed with
+    | `decline_code`, the way a real sandbox declines one magic card number. It
+    | exists because the in-process outcome script (FakeDriver::fakeDecline()) is
+    | unreachable from a browser fixture driving a real HTTP server, which leaves
+    | the failed-checkout half of a payment journey unprovable end to end. Any
+    | other amount succeeds; an in-process script still wins; the real drivers
+    | never read this. Set to null to disable.
+    |
+    */
+    'fake' => [
+        'decline_minor_units' => env('COMMERCE_FAKE_DECLINE_MINOR_UNITS', 66602),
+        'decline_code' => env('COMMERCE_FAKE_DECLINE_CODE', 'card_declined'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Stripe
     |--------------------------------------------------------------------------
     |

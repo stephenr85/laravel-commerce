@@ -20,6 +20,20 @@ use Throwable;
  * pay() consumes in order, so the whole failure taxonomy (decline / step-up /
  * transient-infra) is reproducible with `fake` — no Stripe involved. An empty queue
  * falls back to success, so unscripted callers are unchanged.
+ *
+ * ## The magic decline amount, for callers that are not in this process
+ *
+ * The script above is a static array, so it can only be written by code sharing the PHP process —
+ * which a BROWSER fixture driving a real HTTP server never is (each request to `php -S` starts a
+ * fresh lifecycle, so a scripted decline is gone before the request that needed it arrives). A
+ * failed checkout is the harder and more important half of a payment journey to prove, and it was
+ * unreachable end to end.
+ *
+ * So this rail declines one MAGIC AMOUNT, the way a real sandbox declines one magic card number:
+ * an Order totalling `commerce.fake.decline_minor_units` (default 66602 — $666.02) comes back
+ * `Failed` with `commerce.fake.decline_code`. Nothing else changes: any other amount succeeds, an
+ * in-process script still wins over it, and the real drivers never see any of this. Set the config
+ * key to null to turn it off.
  */
 class FakeDriver implements MoneyInDriver
 {
@@ -33,7 +47,7 @@ class FakeDriver implements MoneyInDriver
 
     public function pay(Order $order): Payment
     {
-        $outcome = array_shift(self::$script);
+        $outcome = array_shift(self::$script) ?? $this->magicDeclineFor($order);
 
         // A transient-infra outcome throws — the orchestrating queue retries the same
         // idempotency key, exactly as a real network/rate_limit error would.
@@ -64,6 +78,30 @@ class FakeDriver implements MoneyInDriver
             driver: $this->name(),
             providerRef: 'fake_re_'.Str::lower(Str::random(16)),
         );
+    }
+
+    /**
+     * The configured magic-amount decline, when this Order's total is exactly it.
+     *
+     * Deliberately keyed on the ORDER's own total rather than on a flag: a flag would have to be
+     * flipped between requests by something outside the process, which is the problem this solves.
+     * An amount travels with the purchase, so one fixture can exercise a captured payment and a
+     * declined one against the same running server, in either order, with nothing to reset.
+     *
+     * @return array{status: PaymentStatus, errorCode: string|null}|null
+     */
+    private function magicDeclineFor(Order $order): ?array
+    {
+        $declineAt = config('commerce.fake.decline_minor_units');
+
+        if ($declineAt === null || $order->total->minorUnits !== (int) $declineAt) {
+            return null;
+        }
+
+        return [
+            'status' => PaymentStatus::Failed,
+            'errorCode' => (string) config('commerce.fake.decline_code', 'card_declined'),
+        ];
     }
 
     /** Script the next pay() to succeed. */

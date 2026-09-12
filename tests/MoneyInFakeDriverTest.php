@@ -66,3 +66,34 @@ it('reverses a Payment through the same driver', function () {
         ->and($refund->amount->minorUnits)->toBe(900)
         ->and($refund->driver)->toBe('fake');
 });
+
+// ── The magic decline amount (ux-demo-convergence G5) ───────────────────────────────────────────
+
+it('declines the configured magic amount, so a failed checkout is reachable from OUTSIDE this process', function () {
+    // The in-process script cannot reach a browser fixture driving `php -S`: each request is a
+    // fresh PHP lifecycle, so a scripted decline is gone before the request that needed it arrives.
+    // An amount travels with the Order, which is why this is keyed on the total.
+    $purchase = app(MoneyIn::class)->place(testOrder(minorUnits: (int) config('commerce.fake.decline_minor_units')));
+
+    expect($purchase->payment->status)->toBe(PaymentStatus::Failed)
+        ->and($purchase->payment->errorCode)->toBe('card_declined')
+        ->and($purchase->payment->succeeded())->toBeFalse();
+});
+
+it('leaves every other amount succeeding, and lets an in-process script win over the magic amount', function () {
+    expect(app(MoneyIn::class)->place(testOrder(minorUnits: 66601))->payment->status)
+        ->toBe(PaymentStatus::Succeeded);
+
+    Rushing\Commerce\Drivers\FakeDriver::fakeSuccess();
+    expect(app(MoneyIn::class)->place(testOrder(minorUnits: 66602))->payment->status)
+        ->toBe(PaymentStatus::Succeeded);
+    Rushing\Commerce\Drivers\FakeDriver::clearFakes();
+});
+
+it('never fires PurchaseCompleted for the declined magic amount', function () {
+    Event::fake([PurchaseCompleted::class]);
+
+    app(MoneyIn::class)->place(testOrder(minorUnits: 66602));
+
+    Event::assertNotDispatched(PurchaseCompleted::class);
+});
