@@ -64,3 +64,14 @@ it('refuses to save or charge a card on the none rail, including custody none ov
             ->and($vault->paymentMethods($customer, $merchant))->toBe([]);
     }
 });
+
+it('refuses the fake vault in production, as the fake driver does (review-r1)', function () {
+    config(['commerce.driver' => 'fake', 'commerce.custody' => 'hosted']);
+    $previous = app()['env'];
+    app()['env'] = 'production';
+    try {
+        expect(fn () => CustomerVaults::forRail(app()))->toThrow(Rushing\Commerce\Exceptions\FakeDriverInProduction::class);
+    } finally {
+        app()['env'] = $previous;
+    }
+});

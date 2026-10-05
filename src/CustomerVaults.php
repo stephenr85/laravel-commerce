@@ -4,6 +4,7 @@ namespace Rushing\Commerce;
 
 use Illuminate\Contracts\Container\Container;
 use Rushing\Commerce\Contracts\CustomerVault;
+use Rushing\Commerce\Exceptions\FakeDriverInProduction;
 use Rushing\Commerce\Stripe\BillableResolver;
 use Rushing\Commerce\Stripe\CashierCustomerVault;
 use Rushing\Commerce\Support\FakeCustomerVault;
@@ -24,7 +25,9 @@ class CustomerVaults
         return match ($rail) {
             'stripe' => new CashierCustomerVault($app->make(BillableResolver::class)),
             'none' => new NoneCustomerVault,
-            default => new FakeCustomerVault,
+            // As the fake driver: in production an undeclared (fake) rail refuses rather than hand users a pretend card
+            // setup (review-r1); the doctor's commerce.rail-declared names the misconfiguration first.
+            default => $app->environment('production') ? throw FakeDriverInProduction::make() : new FakeCustomerVault,
         };
     }
 }
