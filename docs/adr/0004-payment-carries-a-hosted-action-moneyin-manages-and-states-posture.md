@@ -1,7 +1,8 @@
 # A `Payment` carries a hosted action; `MoneyIn` gains `manage()` and `posture()`
 
-**Status:** open. Owner question **BQ-11** (purchase-walkthrough SPEC) is held for the owner. **Implemented default:
-accept**, reversible as described under *If BQ-11 is rejected*.
+**Status:** accepted. Owner question **BQ-11** (purchase-walkthrough SPEC) was answered on 2026-10-05: accept, the
+recommended option (purchase SPEC decided, ecosystem 04de2be0). It had been implemented as the default while the
+question was open; nothing changed on acceptance.
 
 Three additions to the engine's rail (purchase-walkthrough BUY-02, ruling C-11):
 
@@ -32,7 +33,7 @@ One field, not a sibling contract: a hosted leg is a state of a payment (`Requir
 so it belongs on the `Payment` the caller already receives. This is P-A4's own flip condition, met without a second
 seam.
 
-## If BQ-11 is rejected
+## Had BQ-11 been rejected (recorded for the reasoning)
 
 Move the two verbs and the field to a beam-commerce sibling contract, `Hosted`, under the same manager and the same
 `commerce.driver` key. BUY-01's static ban and BUY-03's runtime dataset are unchanged, so no rule changes; only the
