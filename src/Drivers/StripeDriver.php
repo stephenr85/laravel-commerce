@@ -11,6 +11,7 @@ use RuntimeException;
 use Rushing\Commerce\Contracts\CustomerVault;
 use Rushing\Commerce\Contracts\MerchantResolver;
 use Rushing\Commerce\Contracts\MoneyInDriver;
+use Rushing\Commerce\Contracts\ReversesDisputedTransfers;
 use Rushing\Commerce\Contracts\SubscriptionBinder;
 use Rushing\Commerce\Data\BillingAddress;
 use Rushing\Commerce\Data\Customer;
@@ -46,7 +47,7 @@ use Stripe\PaymentIntent;
  * SDK-based `pay()`/`refund()` path for a split-less Order/Payment is completely untouched — zero
  * behavior change for every non-marketplace caller of this driver.
  */
-class StripeDriver implements MoneyInDriver
+class StripeDriver implements MoneyInDriver, ReversesDisputedTransfers
 {
     public function __construct(
         private StripeClientFactory $clients,
