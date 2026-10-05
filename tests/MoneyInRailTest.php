@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
@@ -204,4 +205,36 @@ it('sends the fake portal back only to a path on this app, never a script or ano
         ->and($portal("/\t/evil.example/x"))->not->toContain('evil.example')
         ->and($portal("/\n/evil.example/x"))->not->toContain('evil.example')
         ->and($portal("/\r/evil.example/x"))->not->toContain('evil.example');
+});
+
+it('keeps a pending fake leg reachable across a tenant-scoped cache (checkout in a tenant, confirm on the central host)', function () {
+    // stancl's CacheTenancyBootstrapper tags every Cache facade call with the tenant inside a tenant, but not centrally,
+    // and not a call made through store(). The flagship places the top-up inside the tenant and serves the confirm page
+    // centrally, so the pending leg must live in the untagged store (found by the flagship's money-path test).
+    $central = app('cache');
+    $tenantScoped = new class($central)
+    {
+        public function __construct(private $inner) {}
+
+        public function store($name = null)
+        {
+            return $this->inner->store($name);
+        }
+
+        public function __call($method, $parameters)
+        {
+            return $this->inner->store()->tags(['tenant-acme'])->{$method}(...$parameters);
+        }
+    };
+
+    app()->instance('cache', $tenantScoped);
+    Cache::clearResolvedInstance('cache');
+    $purchase = app(MoneyIn::class)->place(topupOrder(), 'fake', beneficiaryId: 'tenant-acme');
+
+    app()->instance('cache', $central);
+    Cache::clearResolvedInstance('cache');
+    Event::fake([PurchaseCompleted::class]);
+    $this->post(parse_url($purchase->payment->action->url, PHP_URL_PATH))->assertRedirect();
+
+    Event::assertDispatched(PurchaseCompleted::class);
 });

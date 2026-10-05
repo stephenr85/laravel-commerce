@@ -21,7 +21,7 @@ class FakeRailController
     public function show(string $payment): Response
     {
         abort_if(app()->environment('production'), 404);
-        $pending = Cache::get(FakeDriver::PENDING.$payment);
+        $pending = Cache::store()->get(FakeDriver::PENDING.$payment);
         abort_if($pending === null, 404);
 
         $amount = $pending['purchase']->payment->amount;
@@ -40,7 +40,8 @@ class FakeRailController
     {
         abort_if(app()->environment('production'), 404);
         // One-shot: pull under a lock, so a replayed or concurrent confirm settles nothing twice.
-        $pending = Cache::lock(FakeDriver::PENDING.$payment.'.lock', 10)->get(fn () => Cache::pull(FakeDriver::PENDING.$payment));
+        // The same untagged store FakeDriver::holdPending() wrote to.
+        $pending = Cache::store()->lock(FakeDriver::PENDING.$payment.'.lock', 10)->get(fn () => Cache::store()->pull(FakeDriver::PENDING.$payment));
         // `get()` answers false while another confirm holds the lock, null when nothing is pending: neither settles.
         abort_if(! is_array($pending), 404);
 

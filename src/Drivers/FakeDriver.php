@@ -101,7 +101,10 @@ class FakeDriver implements HoldsPendingPurchases, MoneyInDriver
 
     public function holdPending(Purchase $purchase, Order $order): void
     {
-        Cache::put(self::PENDING.$purchase->payment->id, ['purchase' => $purchase, 'returnUrl' => $order->returnUrl], now()->addHour());
+        // Through store(), not the facade proxy: a tenancy cache bootstrapper tags facade calls inside a tenant and not
+        // centrally, while a host places the order in a tenant and serves the confirm page centrally. The key is an
+        // unguessable payment id, so the shared namespace leaks nothing across tenants.
+        Cache::store()->put(self::PENDING.$purchase->payment->id, ['purchase' => $purchase, 'returnUrl' => $order->returnUrl], now()->addHour());
     }
 
     public function manage(Customer $customer, string $returnUrl): PaymentAction
