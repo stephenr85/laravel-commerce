@@ -199,5 +199,9 @@ it('sends the fake portal back only to a path on this app, never a script or ano
         ->and($portal('javascript:alert(1)'))->not->toContain('javascript:')
         ->and($portal('https://evil.example/x'))->not->toContain('evil.example')
         ->and($portal('//evil.example/x'))->not->toContain('evil.example')
-        ->and($portal('/\\evil.example/x'))->not->toContain('evil.example');
+        ->and($portal('/\\evil.example/x'))->not->toContain('evil.example')
+        // Browsers strip ASCII tab and newline from URLs, so `/\t/evil` would become `//evil` (build.qa; the A2 class).
+        ->and($portal("/\t/evil.example/x"))->not->toContain('evil.example')
+        ->and($portal("/\n/evil.example/x"))->not->toContain('evil.example')
+        ->and($portal("/\r/evil.example/x"))->not->toContain('evil.example');
 });
