@@ -16,7 +16,7 @@ use Rushing\Commerce\Data\InvoiceRef;
  *
  * IDEMPOTENT per Bill (review-r1): the caller issues inside a transaction, so a failure after Stripe answered rolls the
  * Bill back to un-invoiced and a retry issues again. Every create therefore carries an Idempotency-Key derived from the
- * Bill (`broker-bill-{bill}-item-{n}`, `-invoice`, `-send`), so within Stripe's 24-hour key window a retry gets the SAME
+ * Bill (`broker-bill-{bill}-customer`, `-item-{n}`, `-invoice`, `-send`), so within Stripe's 24-hour key window a retry gets the SAME
  * items and invoice back instead of a second invoice; the invoice also carries `metadata.bill_id`. Cashier's `tab()` and
  * `invoice()` take no request options, so the adapter makes the same calls on Cashier's Stripe client with the same
  * parameters (the parity recording pins them) plus the key and the metadata.
@@ -30,8 +30,12 @@ class CashierInvoiceIssuer implements InvoiceIssuer
     public function issue(Invoice $invoice): InvoiceRef
     {
         $account = $this->billables->forCustomer($invoice->customer);
+        $key = 'broker-bill-'.($invoice->billReference ?? $invoice->id);
 
-        $account->createOrGetStripeCustomer();
+        // Keyed too: the account's stripe_id is saved on the caller's connection, inside its transaction, so a rollback
+        // erases it and the retry creates the customer again. The key returns the SAME customer, so the replayed item
+        // keys carry the same params (review-r1, build.qa). An existing customer is only read, as before.
+        $account->createOrGetStripeCustomer([], ['idempotency_key' => "{$key}-customer"]);
         // Push the current owner email/name onto the (possibly pre-existing) Stripe customer.
         $account->syncStripeCustomerDetails();
 
@@ -41,7 +45,6 @@ class CashierInvoiceIssuer implements InvoiceIssuer
         }
 
         $stripe = $account::stripe();
-        $key = 'broker-bill-'.($invoice->billReference ?? $invoice->id);
 
         foreach (array_values($invoice->lineItems) as $n => $item) {
             /** @var BillingLineItem $item */
