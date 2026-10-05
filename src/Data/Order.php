@@ -4,6 +4,7 @@ namespace Rushing\Commerce\Data;
 
 use Illuminate\Support\Str;
 use Rushing\Commerce\Enums\Cadence;
+use Rushing\Commerce\Enums\PaymentActionKind;
 use Rushing\Commerce\Enums\PurchaseKind;
 use Schemastud\DataSchemas\Contracts\SchemaIdentity;
 use Spatie\LaravelData\Attributes\DataCollectionOf;
@@ -42,6 +43,12 @@ class Order extends Data implements SchemaIdentity
         // Order (the overwhelming majority); a driver that understands Split resolves it to
         // provider-specific split-payment parameters below this DTO.
         public ?Split $split = null,
+        // BUY-02 (C-11): ask the rail for a HOSTED leg (a provider checkout page or an embedded session) instead of a
+        // direct charge. The Payment comes back RequiresAction carrying `action`; it settles through the provider's
+        // webhook (or the fake rail's confirm page) into the same PurchaseCompleted. One-time Orders only.
+        public ?PaymentActionKind $hosted = null,
+        // Where the hosted leg returns the browser. Stripe substitutes `{CHECKOUT_SESSION_ID}` when present.
+        public ?string $returnUrl = null,
     ) {}
 
     /**
@@ -60,6 +67,8 @@ class Order extends Data implements SchemaIdentity
         ?BillingAddress $billingAddress = null,
         bool $delegated = false,
         ?Split $split = null,
+        ?PaymentActionKind $hosted = null,
+        ?string $returnUrl = null,
     ): self {
         $currency ??= $lineItems[0]->amount->currency ?? config('commerce.currency', 'USD');
 
@@ -83,6 +92,8 @@ class Order extends Data implements SchemaIdentity
             billingAddress: $billingAddress,
             delegated: $delegated,
             split: $split,
+            hosted: $hosted,
+            returnUrl: $returnUrl,
         );
     }
 

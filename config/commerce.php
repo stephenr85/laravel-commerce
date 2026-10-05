@@ -16,6 +16,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Custody posture
+    |--------------------------------------------------------------------------
+    |
+    | Who holds the money (purchase-walkthrough BUY-4): `none` offers no purchase,
+    | `hosted` collects through a provider-hosted leg, `direct` charges in-app.
+    | MoneyIn::posture() reads ONLY this key; the rail above never changes it.
+    | Unset keeps today's behaviour (`hosted`). A host that collects nothing sets
+    | `none` and binds the `none` rail.
+    |
+    */
+    'custody' => env('COMMERCE_CUSTODY'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Fake rail
     |--------------------------------------------------------------------------
     |

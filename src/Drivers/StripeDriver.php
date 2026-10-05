@@ -12,14 +12,18 @@ use Rushing\Commerce\Contracts\MerchantResolver;
 use Rushing\Commerce\Contracts\MoneyInDriver;
 use Rushing\Commerce\Contracts\SubscriptionBinder;
 use Rushing\Commerce\Data\BillingAddress;
+use Rushing\Commerce\Data\Customer;
 use Rushing\Commerce\Data\Dispute;
+use Rushing\Commerce\Data\LineItem;
 use Rushing\Commerce\Data\Merchant;
 use Rushing\Commerce\Data\Money;
 use Rushing\Commerce\Data\Order;
 use Rushing\Commerce\Data\Payment;
+use Rushing\Commerce\Data\PaymentAction;
 use Rushing\Commerce\Data\Refund;
 use Rushing\Commerce\Data\Split;
 use Rushing\Commerce\Enums\Cadence;
+use Rushing\Commerce\Enums\PaymentActionKind;
 use Rushing\Commerce\Enums\PaymentStatus;
 use Rushing\Commerce\Stripe\StripeClientFactory;
 use Stripe\Exception\CardException;
@@ -58,6 +62,16 @@ class StripeDriver implements MoneyInDriver
     public function pay(Order $order): Payment
     {
         $merchant = $this->merchants->forOrder($order);
+
+        // BUY-02 (C-11): a hosted leg is a Checkout Session the customer completes; the Payment comes back
+        // RequiresAction carrying one `action` and settles through checkout.session.completed.
+        if ($order->hosted !== null) {
+            if ($order->cadence === Cadence::Recurring) {
+                throw new RuntimeException('A hosted leg is for one-time Orders; subscriptions go through the SubscriptionBinder (purchase-walkthrough BUY-04).');
+            }
+
+            return $this->hostedCheckout($order, $merchant);
+        }
 
         if ($order->cadence === Cadence::Recurring) {
             return $this->subscribe($order, $merchant);
@@ -125,6 +139,86 @@ class StripeDriver implements MoneyInDriver
             merchantId: $merchant->id,
             errorCode: $code,
         );
+    }
+
+    /**
+     * The customer's Stripe billing portal (BUY-02: the portal goes through the rail, never a Cashier call). The
+     * merchant resolves from a line-less Order for the customer: both shipped resolvers answer by party, not by lines.
+     */
+    public function manage(Customer $customer, string $returnUrl): PaymentAction
+    {
+        $merchant = $this->merchants->forOrder(Order::for($customer, []));
+
+        $session = $this->clients->for($merchant)->billingPortal->sessions->create([
+            'customer' => $this->vaultedCustomer($customer, $merchant, 'A billing portal'),
+            'return_url' => $returnUrl,
+        ]);
+
+        return PaymentAction::redirect((string) $session->url);
+    }
+
+    /**
+     * A Checkout Session for a one-time Order: `embedded` returns its client secret, `redirect` its URL. The metadata is
+     * exactly what {@see \Rushing\Commerce\Stripe\StripeWebhookTranslator::creditTopup()} reads back: `kind` selects the
+     * path and `party_ref` is the beneficiary, so settlement needs no new translator.
+     */
+    private function hostedCheckout(Order $order, Merchant $merchant): Payment
+    {
+        $return = $order->returnUrl ?? throw new RuntimeException('A hosted leg needs Order::$returnUrl to send the customer back to.');
+        $embedded = $order->hosted === PaymentActionKind::Embedded;
+
+        $params = [
+            'mode' => 'payment',
+            'line_items' => array_map(fn (LineItem $line): array => [
+                'quantity' => $line->quantity,
+                'price_data' => [
+                    'currency' => Str::lower($line->unitPrice->currency),
+                    'unit_amount' => $line->unitPrice->minorUnits,
+                    'product_data' => ['name' => $line->description],
+                ],
+            ], $order->lineItems),
+            'client_reference_id' => $order->customer->id,
+            'metadata' => array_filter([
+                'kind' => $order->kind->value,
+                'party_ref' => $order->customer->id,
+                'order_id' => $order->id,
+                'order_reference' => $order->reference,
+            ], fn ($value) => $value !== null),
+        ];
+        if ($this->vault !== null) {
+            $params['customer'] = $this->vault->resolveCustomer($order->customer, $merchant)->providerRef;
+        }
+        if ($embedded) {
+            $params['ui_mode'] = 'embedded';
+            $params['return_url'] = $return;
+        } else {
+            $params['success_url'] = $return;
+            $params['cancel_url'] = $return;
+        }
+
+        $session = $this->clients->for($merchant)->checkout->sessions->create($params);
+
+        return new Payment(
+            id: (string) Str::uuid(),
+            orderId: $order->id,
+            amount: $order->total,
+            status: PaymentStatus::RequiresAction,
+            driver: $this->name(),
+            providerRef: $session->id,
+            merchantId: $merchant->id,
+            action: $embedded
+                ? PaymentAction::embedded((string) $session->client_secret)
+                : PaymentAction::redirect((string) $session->url),
+        );
+    }
+
+    private function vaultedCustomer(Customer $customer, Merchant $merchant, string $what): string
+    {
+        if ($this->vault === null) {
+            throw new RuntimeException("{$what} needs a CustomerVault implementation. Bind ".CustomerVault::class.' in the host.');
+        }
+
+        return $this->vault->resolveCustomer($customer, $merchant)->providerRef;
     }
 
     public function refund(Payment $payment): Refund

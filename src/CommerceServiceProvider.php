@@ -124,6 +124,13 @@ class CommerceServiceProvider extends PackageServiceProvider
                 ->group(__DIR__.'/../routes/acp.php');
         });
 
+        // The fake rail's hosted leg (BUY-02): its confirm page and billing portal stand-in. Brand-blind like the ACP
+        // routes: a host mounts them where it wants (inside `web`), typically only off production.
+        Route::macro('commerceFakeRailRoutes', function (): void {
+            Route::prefix(config('commerce.fake.route_root', 'commerce/fake'))
+                ->group(__DIR__.'/../routes/fake-rail.php');
+        });
+
         // Engine-owned wallet funding: a Credit-topup Purchase funds the beneficiary's Wallet,
         // so every host gets top-up funding without wiring its own listener (the Stripe driver
         // only translates the provider event into the Purchase).

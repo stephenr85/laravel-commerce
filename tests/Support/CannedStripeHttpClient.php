@@ -61,6 +61,19 @@ class CannedStripeHttpClient implements ClientInterface
                 'id' => 'cus_fake_123',
                 'object' => 'customer',
             ]),
+            str_contains($absUrl, '/v1/checkout/sessions') => json_encode([
+                'id' => 'cs_fake_123',
+                'object' => 'checkout.session',
+                'status' => 'open',
+                'ui_mode' => $params['ui_mode'] ?? 'hosted',
+                'client_secret' => ($params['ui_mode'] ?? 'hosted') === 'embedded' ? 'cs_fake_123_secret' : null,
+                'url' => ($params['ui_mode'] ?? 'hosted') === 'embedded' ? null : 'https://checkout.stripe.test/c/cs_fake_123',
+            ]),
+            str_contains($absUrl, '/v1/billing_portal/sessions') => json_encode([
+                'id' => 'bps_fake_123',
+                'object' => 'billing_portal.session',
+                'url' => 'https://billing.stripe.test/p/session/bps_fake_123',
+            ]),
             str_contains($absUrl, '/v1/refunds') => json_encode([
                 'id' => 're_fake_123',
                 'object' => 'refund',

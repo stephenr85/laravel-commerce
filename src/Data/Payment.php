@@ -31,6 +31,9 @@ class Payment extends Data implements SchemaIdentity
         // Order carried one — carried forward so a later refund/dispute reversal can prorate
         // against the SAME split, without a caller having to keep its own side-table.
         public ?Split $split = null,
+        // BUY-02 (C-11): the hosted leg a RequiresAction payment still needs, a redirect URL or an embedded client
+        // secret. Null for a payment that settled, failed, or awaits a step-up the provider presents itself.
+        public ?PaymentAction $action = null,
     ) {}
 
     public function succeeded(): bool

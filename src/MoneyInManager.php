@@ -7,6 +7,7 @@ use Illuminate\Contracts\Container\Container;
 use Illuminate\Support\Manager;
 use InvalidArgumentException;
 use Rushing\Commerce\Drivers\FakeDriver;
+use Rushing\Commerce\Drivers\NoneDriver;
 use Rushing\Commerce\Drivers\StripeDriver;
 use Rushing\Commerce\Exceptions\FakeDriverInProduction;
 use Rushing\Popcorn\Registries\Authorizer;
@@ -56,7 +57,7 @@ use Rushing\Popcorn\Registries\RegistryKey;
     entryType: Closure::class,
     onKeyDuplicate: OnKeyDuplicate::Supersede,
     populationRequirement: PopulationRequirement::Optional,
-    description: 'money-in drivers (fake · stripe) — the rail a party collects through, as the factories that build them. A foreign-base registry: it extends Laravel\'s Manager, so it can extend nothing of ours — which is the deciding case for Registry being an interface rather than a base class. The seam is `extend()`; `commerce.driver` only SELECTS among registered drivers, it never registers one. Manager has no un-register: forgetDrivers() clears memoized instances, $customCreators survive — and so does this keyspace, deliberately, because a forgotten instance is not a forgotten registration.',
+    description: 'money-in drivers (fake · stripe · none) — the rail a party collects through, as the factories that build them. A foreign-base registry: it extends Laravel\'s Manager, so it can extend nothing of ours — which is the deciding case for Registry being an interface rather than a base class. The seam is `extend()`; `commerce.driver` only SELECTS among registered drivers, it never registers one. Manager has no un-register: forgetDrivers() clears memoized instances, $customCreators survive — and so does this keyspace, deliberately, because a forgotten instance is not a forgotten registration.',
     order: 60,
 )]
 class MoneyInManager extends Manager implements Gated, Registry
@@ -76,6 +77,8 @@ class MoneyInManager extends Manager implements Gated, Registry
         // Manager's create*Driver() convention is what lets keys() report them at all.
         $this->register('fake', fn (): FakeDriver => $this->createFakeDriver(), by: self::class);
         $this->register('stripe', fn (): StripeDriver => $this->createStripeDriver(), by: self::class);
+        // BUY-4: the rail of a host that collects no money. Legal in production, unlike `fake`; it refuses every verb.
+        $this->register('none', fn (): NoneDriver => new NoneDriver, by: self::class);
     }
 
     public function getDefaultDriver(): string

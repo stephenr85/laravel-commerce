@@ -49,10 +49,12 @@ it('conforms to the kernel contract and describes all four roots', function () {
  * $customCreators, so a registry that reported only what a host extend()ed would report an empty root
  * while two drivers worked.
  */
-it('reports both shipped money-in rails without reflecting into Manager', function () {
+it('reports the three shipped money-in rails without reflecting into Manager', function () {
+    // `none` joined at purchase-walkthrough BUY-02 (custody `none`, BUY-4).
     expect(array_map(strval(...), app(MoneyInManager::class)->keys()))->toBe([
         'commerce.money-in.drivers.fake',
         'commerce.money-in.drivers.stripe',
+        'commerce.money-in.drivers.none',
     ]);
 });
 

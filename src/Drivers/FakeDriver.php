@@ -2,11 +2,18 @@
 
 namespace Rushing\Commerce\Drivers;
 
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
+use Rushing\Commerce\Contracts\HoldsPendingPurchases;
 use Rushing\Commerce\Contracts\MoneyInDriver;
+use Rushing\Commerce\Data\Customer;
 use Rushing\Commerce\Data\Order;
 use Rushing\Commerce\Data\Payment;
+use Rushing\Commerce\Data\PaymentAction;
+use Rushing\Commerce\Data\Purchase;
 use Rushing\Commerce\Data\Refund;
+use RuntimeException;
 use Rushing\Commerce\Enums\PaymentStatus;
 use Throwable;
 
@@ -35,7 +42,7 @@ use Throwable;
  * in-process script still wins over it, and the real drivers never see any of this. Set the config
  * key to null to turn it off.
  */
-class FakeDriver implements MoneyInDriver
+class FakeDriver implements HoldsPendingPurchases, MoneyInDriver
 {
     /** @var list<Throwable|array{status: PaymentStatus, errorCode: string|null}> */
     private static array $script = [];
@@ -45,8 +52,27 @@ class FakeDriver implements MoneyInDriver
         return 'fake';
     }
 
+    /** Cache key prefix for a hosted leg awaiting the local confirm page. */
+    public const PENDING = 'commerce.fake.pending.';
+
     public function pay(Order $order): Payment
     {
+        // BUY-02 (C-11): a hosted leg is a local confirm page, so the browser leg is exercised with no provider. It is a
+        // redirect even when the Order asked for `embedded`: there is no provider session to mount under the fake.
+        if ($order->hosted !== null) {
+            $id = (string) Str::uuid();
+
+            return new Payment(
+                id: $id,
+                orderId: $order->id,
+                amount: $order->total,
+                status: PaymentStatus::RequiresAction,
+                driver: $this->name(),
+                providerRef: 'fake_cs_'.Str::lower(Str::random(16)),
+                action: PaymentAction::redirect($this->route('commerce.fake.confirm', ['payment' => $id])),
+            );
+        }
+
         $outcome = array_shift(self::$script) ?? $this->magicDeclineFor($order);
 
         // A transient-infra outcome throws — the orchestrating queue retries the same
@@ -67,6 +93,26 @@ class FakeDriver implements MoneyInDriver
             providerRef: 'fake_'.Str::lower(Str::random(16)),
             errorCode: $errorCode,
         );
+    }
+
+    public function holdPending(Purchase $purchase, Order $order): void
+    {
+        Cache::put(self::PENDING.$purchase->payment->id, ['purchase' => $purchase, 'returnUrl' => $order->returnUrl], now()->addHour());
+    }
+
+    public function manage(Customer $customer, string $returnUrl): PaymentAction
+    {
+        return PaymentAction::redirect($this->route('commerce.fake.portal', ['return' => $returnUrl]));
+    }
+
+    /** The fake rail's own pages are host-mounted (`Route::commerceFakeRailRoutes()`); unmounted is a loud error. */
+    private function route(string $name, array $parameters): string
+    {
+        if (! Route::has($name)) {
+            throw new RuntimeException("The fake rail's hosted leg needs its pages: mount Route::commerceFakeRailRoutes() (missing route [{$name}]).");
+        }
+
+        return route($name, $parameters);
     }
 
     public function refund(Payment $payment): Refund

@@ -3,12 +3,16 @@
 namespace Rushing\Commerce;
 
 use Illuminate\Support\Str;
+use Rushing\Commerce\Contracts\HoldsPendingPurchases;
 use Rushing\Commerce\Contracts\MoneyInDriver;
+use Rushing\Commerce\Data\Customer;
 use Rushing\Commerce\Data\Order;
 use Rushing\Commerce\Data\Payment;
+use Rushing\Commerce\Data\PaymentAction;
 use Rushing\Commerce\Data\Purchase;
 use Rushing\Commerce\Data\Receipt;
 use Rushing\Commerce\Data\Refund;
+use Rushing\Commerce\Enums\CustodyPosture;
 use Rushing\Commerce\Events\PaymentRefunded;
 use Rushing\Commerce\Events\PurchaseCompleted;
 
@@ -51,6 +55,10 @@ class MoneyIn
         // fund a Wallet. The caller inspects the returned Purchase's payment status.
         if ($payment->succeeded()) {
             PurchaseCompleted::dispatch($purchase);
+        } elseif ($payment->action !== null && ($rail = $this->driver($driver)) instanceof HoldsPendingPurchases) {
+            // A hosted leg the rail settles itself (the fake's confirm page) keeps the Purchase this call built, so the
+            // settlement dispatches the same PurchaseCompleted (BUY-02, C-11).
+            $rail->holdPending($purchase, $order);
         }
 
         return $purchase;
@@ -63,6 +71,24 @@ class MoneyIn
         PaymentRefunded::dispatch($refund);
 
         return $refund;
+    }
+
+    /**
+     * The customer's self-service billing page through the rail (BUY-02: the portal goes through `manage`, never a direct
+     * provider call). A redirect action; the `none` rail throws.
+     */
+    public function manage(Customer $customer, string $returnUrl, ?string $driver = null): PaymentAction
+    {
+        return $this->driver($driver)->manage($customer, $returnUrl);
+    }
+
+    /**
+     * Who holds the money here (BUY-4). Read ONLY from `commerce.custody`; the rail never changes it. Undeclared keeps
+     * today's behaviour, purchases offered through hosted legs; a host that collects nothing declares `none`.
+     */
+    public function posture(): CustodyPosture
+    {
+        return CustodyPosture::tryFrom((string) config('commerce.custody')) ?? CustodyPosture::Hosted;
     }
 
     public function driver(?string $driver = null): MoneyInDriver

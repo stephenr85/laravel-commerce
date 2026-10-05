@@ -2,8 +2,10 @@
 
 namespace Rushing\Commerce\Contracts;
 
+use Rushing\Commerce\Data\Customer;
 use Rushing\Commerce\Data\Order;
 use Rushing\Commerce\Data\Payment;
+use Rushing\Commerce\Data\PaymentAction;
 use Rushing\Commerce\Data\Refund;
 
 /**
@@ -19,4 +21,10 @@ interface MoneyInDriver
     public function pay(Order $order): Payment;
 
     public function refund(Payment $payment): Refund;
+
+    /**
+     * The customer's self-service billing page (purchase-walkthrough BUY-02: the portal goes through the rail). A
+     * redirect {@see PaymentAction}; a rail that collects nothing throws.
+     */
+    public function manage(Customer $customer, string $returnUrl): PaymentAction;
 }
