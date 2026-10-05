@@ -2,16 +2,24 @@
 
 namespace Rushing\Commerce\Stripe;
 
+use Laravel\Cashier\Cashier;
+use LogicException;
 use Rushing\Commerce\Contracts\InvoiceIssuer;
 use Rushing\Commerce\Data\BillingLineItem;
 use Rushing\Commerce\Data\Invoice;
 use Rushing\Commerce\Data\InvoiceRef;
 
 /**
- * A payable Stripe invoice, inside the Stripe adapter (purchase-walkthrough BUY-02 part D, rule BUY-1). The Cashier calls
- * the flagship's BrokerInvoicer made, moved unchanged onto the host's billable: the customer, its details pushed up, one
- * invoice item per line, and an invoice sent for payment in 30 days (`send_invoice`). Paid later, through the provider's
- * invoice.paid webhook and the host's InvoiceReconciler; nothing is charged here.
+ * A payable Stripe invoice, inside the Stripe adapter (purchase-walkthrough BUY-02 part D, rule BUY-1). The customer, its
+ * details pushed up, one invoice item per line, and an invoice sent for payment in 30 days (`send_invoice`). Paid later,
+ * through the provider's invoice.paid webhook and the host's InvoiceReconciler; nothing is charged here.
+ *
+ * IDEMPOTENT per Bill (review-r1): the caller issues inside a transaction, so a failure after Stripe answered rolls the
+ * Bill back to un-invoiced and a retry issues again. Every create therefore carries an Idempotency-Key derived from the
+ * Bill (`broker-bill-{bill}-item-{n}`, `-invoice`, `-send`), so within Stripe's 24-hour key window a retry gets the SAME
+ * items and invoice back instead of a second invoice; the invoice also carries `metadata.bill_id`. Cashier's `tab()` and
+ * `invoice()` take no request options, so the adapter makes the same calls on Cashier's Stripe client with the same
+ * parameters (the parity recording pins them) plus the key and the metadata.
  */
 class CashierInvoiceIssuer implements InvoiceIssuer
 {
@@ -27,17 +35,37 @@ class CashierInvoiceIssuer implements InvoiceIssuer
         // Push the current owner email/name onto the (possibly pre-existing) Stripe customer.
         $account->syncStripeCustomerDetails();
 
-        foreach ($invoice->lineItems as $item) {
-            /** @var BillingLineItem $item */
-            // The label is the caller's (BrokerInvoicer keeps its old `description ?? component_type ?? 'Usage'`).
-            $account->tab($item->description, (int) round($item->amountUsd * 100));
+        if (Cashier::$calculatesTaxes) {
+            // As Cashier's tab() refuses: automatic tax needs price_data, which a broker line does not carry.
+            throw new LogicException('When using automatic tax calculation, you must include "price_data" in the provided options array.');
         }
 
-        // send_invoice: Cashier's invoice() sends a payable invoice instead of charging.
-        $stripeInvoice = $account->invoice([
+        $stripe = $account::stripe();
+        $key = 'broker-bill-'.($invoice->billReference ?? $invoice->id);
+
+        foreach (array_values($invoice->lineItems) as $n => $item) {
+            /** @var BillingLineItem $item */
+            // The label is the caller's (BrokerInvoicer keeps its old `description ?? component_type ?? 'Usage'`).
+            $stripe->invoiceItems->create([
+                'customer' => $account->stripe_id,
+                'currency' => $account->preferredCurrency(),
+                'description' => $item->description,
+                'amount' => (int) round($item->amountUsd * 100),
+            ], ['idempotency_key' => "{$key}-item-{$n}"]);
+        }
+
+        // send_invoice: a payable invoice the customer is sent, never charged here.
+        $stripeInvoice = $stripe->invoices->create([
+            'automatic_tax' => array_filter(['enabled' => Cashier::$calculatesTaxes]),
+            'customer' => $account->stripe_id,
+            'currency' => $account->asStripeCustomer()->currency ?? config('cashier.currency'),
+            'pending_invoice_items_behavior' => 'include',
             'collection_method' => 'send_invoice',
             'days_until_due' => self::DAYS_UNTIL_DUE,
-        ]);
+            'metadata' => ['bill_id' => (string) ($invoice->billReference ?? $invoice->id)],
+        ], ['idempotency_key' => "{$key}-invoice"]);
+
+        $stripeInvoice->sendInvoice(null, ['idempotency_key' => "{$key}-send"]);
 
         return new InvoiceRef(providerRef: (string) $stripeInvoice->id, paid: false, billReference: $invoice->billReference);
     }
