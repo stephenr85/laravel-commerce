@@ -19,12 +19,16 @@ class FakeRailStripeHttpClient implements ClientInterface
 {
     public function __construct(private ?ClientInterface $transport = null) {}
 
-    public function request($method, $absUrl, $headers, $params, $hasFile, $apiMode = 'v1')
+    /**
+     * stripe-php 17 added `$maxNetworkRetries` to the interface; an implementation may declare more optional parameters
+     * than its interface, so this one signature satisfies every supported major, and all arguments are forwarded.
+     */
+    public function request($method, $absUrl, $headers, $params, $hasFile, $apiMode = 'v1', $maxNetworkRetries = null)
     {
         if (config('commerce.driver') === 'fake') {
             throw StripeDisabledOnFakeRail::for((string) $method, (string) $absUrl);
         }
 
-        return ($this->transport ?? CurlClient::instance())->request($method, $absUrl, $headers, $params, $hasFile, $apiMode);
+        return ($this->transport ?? CurlClient::instance())->request(...func_get_args());
     }
 }
