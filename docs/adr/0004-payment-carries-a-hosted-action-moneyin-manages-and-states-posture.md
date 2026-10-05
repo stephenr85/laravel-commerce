@@ -26,8 +26,10 @@ credit top-up, the billing portal, the broker invoice, and the plan checkout. Th
 where a fake rail matters, and BUY-1's static ban could never go green.
 
 These additions do not wrap Cashier. The rail reports a payment outcome that the provider already produces: a
-Checkout Session's client secret or URL, and a billing-portal URL. Cashier is not in the call path at all (the Stripe
-driver calls the SDK directly).
+Checkout Session's client secret or URL, and a billing-portal URL; the hosted leg and the portal call the SDK directly.
+Where a host's existing Cashier billable already held the money state (the card vault, and a broker's payable invoice),
+BUY-02 moved those Cashier calls UNCHANGED into the Stripe adapter (`Stripe\CashierCustomerVault`,
+`Stripe\CashierInvoiceIssuer`, over a host `Stripe\BillableResolver`), proven by parity tests rather than rewritten.
 
 One field, not a sibling contract: a hosted leg is a state of a payment (`RequiresAction` plus how to resolve it),
 so it belongs on the `Payment` the caller already receives. This is P-A4's own flip condition, met without a second
