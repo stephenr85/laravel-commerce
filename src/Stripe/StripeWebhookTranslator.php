@@ -141,6 +141,63 @@ class StripeWebhookTranslator
     }
 
     /**
+     * A plan's card setup that SUCCEEDED (`setup_intent.succeeded`, from the mode=setup Checkout the subscription's hosted
+     * leg opens, BUY-04) → a completed {@see Purchase} of kind {@see PurchaseKind::Subscription} that charged nothing. The
+     * SetupIntent carries the session's metadata: `party_ref` is the beneficiary and `order_reference` the subscription;
+     * the grant carries both the subscription and the saved card, so the host can make the card the default and settle
+     * the subscription's funding. The SetupIntent id is the Payment's `providerRef`. Null for anything else.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    public function subscriptionSetup(array $payload): ?Purchase
+    {
+        if (($payload['type'] ?? null) !== 'setup_intent.succeeded') {
+            return null;
+        }
+
+        $intent = $payload['data']['object'] ?? [];
+        $metadata = $intent['metadata'] ?? [];
+        $party = $metadata['party_ref'] ?? null;
+        $subscription = $metadata['order_reference'] ?? null;
+        $card = $intent['payment_method'] ?? null;
+
+        if (($metadata['kind'] ?? null) !== PurchaseKind::Subscription->value
+            || ($intent['status'] ?? null) !== 'succeeded'
+            || ! is_string($intent['id'] ?? null)
+            || ! is_string($party) || $party === ''
+            || ! is_string($subscription) || $subscription === ''
+            || ! is_string($card) || $card === '') {
+            return null;
+        }
+
+        $amount = Money::zero(strtoupper((string) config('commerce.currency', 'USD')));
+        $orderId = (string) Str::uuid();
+        $payment = new Payment(
+            id: (string) Str::uuid(),
+            orderId: $orderId,
+            amount: $amount,
+            status: PaymentStatus::Succeeded,
+            driver: 'stripe',
+            providerRef: $intent['id'],
+        );
+
+        return new Purchase(
+            id: (string) Str::uuid(),
+            orderId: $orderId,
+            kind: PurchaseKind::Subscription,
+            payment: $payment,
+            receipt: new Receipt(
+                id: (string) Str::uuid(),
+                paymentId: $payment->id,
+                orderId: $orderId,
+                amount: $amount,
+            ),
+            beneficiaryId: $party,
+            grant: ['subscription_id' => $subscription, 'payment_method' => $card],
+        );
+    }
+
+    /**
      * `charge.dispute.created` → a neutral {@see Dispute}, or null otherwise. Pure translation —
      * no Stripe API call happens here (unlike a driver's own reversal action, which does). Null
      * when the payload isn't a dispute-creation event or is missing the charge reference/amount a

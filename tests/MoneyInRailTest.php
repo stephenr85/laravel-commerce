@@ -178,6 +178,7 @@ it('C-3: custody none selects the none rail whatever commerce.driver or the call
 });
 
 it('opens a hosted leg only for a kind that has a settling translator, on stripe and fake alike', function (string $driver, PurchaseKind $kind) {
+    // A plan's hosted leg is a card SETUP since BUY-04 (its own tests below); a perpetual one still has no translator.
     // build.qa: StripeWebhookTranslator settles only credit_topup from checkout.session.completed. A hosted plan or market
     // leg would charge and grant nothing, while the fake confirm page settled it: the fake must not prove what Stripe
     // cannot do (BUY-3). Both rails refuse until a translator exists for the kind.
@@ -191,7 +192,7 @@ it('opens a hosted leg only for a kind that has a settling translator, on stripe
 
     expect(fn () => app(MoneyIn::class)->place($order, $driver))->toThrow(InvalidArgumentException::class, $kind->value);
     expect($this->stripe->requests)->toBe([]);
-})->with(['stripe', 'fake'])->with([PurchaseKind::Perpetual, PurchaseKind::Subscription]);
+})->with(['stripe', 'fake'])->with([PurchaseKind::Perpetual]);
 
 it('sends the fake portal back only to a path on this app, never a script or another origin', function () {
     $portal = fn (string $return) => $this->get(route('commerce.fake.portal', ['return' => $return]))->assertOk()->getContent();
@@ -237,4 +238,50 @@ it('keeps a pending fake leg reachable across a tenant-scoped cache (checkout in
     $this->post(parse_url($purchase->payment->action->url, PHP_URL_PATH))->assertRedirect();
 
     Event::assertDispatched(PurchaseCompleted::class);
+});
+
+/** BUY-04 (BQ-2): a plan's hosted leg saves a card and charges nothing; the subscription id rides as the reference. */
+function planSetupOrder(PaymentActionKind $hosted = PaymentActionKind::Redirect): Order
+{
+    return Order::for(
+        customer: new Customer(id: 'tenant-acme', name: 'Acme', email: 'billing@acme.test'),
+        lineItems: [LineItem::for('Studio plan: card on file', Money::of(0))],
+        kind: PurchaseKind::Subscription,
+        reference: 'sub-1',
+        hosted: $hosted,
+        returnUrl: 'https://acme.test/ui/settings/subscription?checkout=success',
+    );
+}
+
+it('opens a plan\'s hosted leg on stripe as a card-setup Checkout: no charge, no price, the subscription on the setup intent', function () {
+    Event::fake([PurchaseCompleted::class]);
+
+    $payment = app(MoneyIn::class)->place(planSetupOrder(), 'stripe', beneficiaryId: 'tenant-acme', grant: ['subscription_id' => 'sub-1'])->payment;
+
+    expect($payment->status)->toBe(PaymentStatus::RequiresAction)
+        ->and($payment->action?->url)->toBe('https://checkout.stripe.test/c/cs_fake_123')
+        ->and($payment->amount->minorUnits)->toBe(0);
+    $request = collect($this->stripe->requests)->first(fn ($r) => str_contains($r['url'], '/v1/checkout/sessions'));
+    expect($request['params']['mode'])->toBe('setup')
+        ->and($request['params']['currency'])->toBe('usd')
+        ->and($request['params']['customer'])->toBe('cus_vault_tenant-acme')
+        ->and($request['params'])->not->toHaveKey('line_items')
+        // What the setup_intent.succeeded translator reads back, on the SetupIntent itself.
+        ->and($request['params']['setup_intent_data']['metadata'])->toMatchArray(['kind' => 'subscription', 'party_ref' => 'tenant-acme', 'order_reference' => 'sub-1']);
+    expect(collect($this->stripe->requests)->filter(fn ($r) => str_contains($r['url'], '/v1/payment_intents') || str_contains($r['url'], '/v1/subscriptions'))->all())->toBe([]);
+    Event::assertNotDispatched(PurchaseCompleted::class);
+});
+
+it('settles a plan\'s fake setup leg into a Subscription PurchaseCompleted carrying the subscription, for nothing', function () {
+    Event::fake([PurchaseCompleted::class]);
+    $purchase = app(MoneyIn::class)->place(planSetupOrder(), 'fake', beneficiaryId: 'tenant-acme', grant: ['subscription_id' => 'sub-1']);
+    $confirm = parse_url($purchase->payment->action->url, PHP_URL_PATH);
+
+    $this->post($confirm)->assertRedirect('https://acme.test/ui/settings/subscription?checkout=success');
+
+    Event::assertDispatched(PurchaseCompleted::class, fn (PurchaseCompleted $e) => $e->purchase->kind === PurchaseKind::Subscription
+        && $e->purchase->beneficiaryId === 'tenant-acme'
+        && $e->purchase->grant === ['subscription_id' => 'sub-1']
+        && $e->purchase->payment->succeeded()
+        && $e->purchase->payment->amount->minorUnits === 0);
 });

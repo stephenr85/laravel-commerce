@@ -15,11 +15,13 @@ enum PurchaseKind: string
 
     /**
      * Whether a hosted leg (a provider checkout page) can settle for this kind: a provider webhook translator turns its
-     * completion into a PurchaseCompleted. Only a credit top-up has one today (StripeWebhookTranslator::creditTopup), so
-     * every rail refuses a hosted leg for the rest rather than charge and grant nothing (BUY-02, build.qa).
+     * completion into a PurchaseCompleted. A credit top-up (StripeWebhookTranslator::creditTopup) is a paid session; a
+     * subscription's is a card SETUP that charges nothing (StripeWebhookTranslator::subscriptionSetup, BUY-04 under BQ-2:
+     * the host's own bills are the price of record and charge the saved card later). Every rail refuses a hosted leg for
+     * the rest rather than charge and grant nothing (BUY-02, build.qa).
      */
     public function settlesHosted(): bool
     {
-        return $this === self::CreditTopup;
+        return $this === self::CreditTopup || $this === self::Subscription;
     }
 }

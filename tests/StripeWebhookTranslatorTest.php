@@ -109,3 +109,38 @@ it('refuses to verify against an empty secret, which anyone could sign with (bui
     expect(fn () => app(Rushing\Commerce\Stripe\StripeWebhookTranslator::class)->verify($payload, $forged, ''))
         ->toThrow(Rushing\Commerce\Exceptions\InvalidWebhookSignature::class);
 });
+
+function setupPayload(array $overrides = [], array $metadata = []): array
+{
+    return ['type' => 'setup_intent.succeeded', 'data' => ['object' => array_merge([
+        'id' => 'seti_1',
+        'object' => 'setup_intent',
+        'status' => 'succeeded',
+        'customer' => 'cus_1',
+        'payment_method' => 'pm_1',
+        'metadata' => array_merge(['kind' => 'subscription', 'party_ref' => 'tenant-x', 'order_reference' => 'sub-1'], $metadata),
+    ], $overrides)]];
+}
+
+it('translates a plan\'s succeeded card setup into a Subscription purchase carrying the subscription and the card (BUY-04)', function () {
+    $purchase = (new StripeWebhookTranslator)->subscriptionSetup(setupPayload());
+
+    expect($purchase->kind)->toBe(PurchaseKind::Subscription)
+        ->and($purchase->beneficiaryId)->toBe('tenant-x')
+        ->and($purchase->grant)->toBe(['subscription_id' => 'sub-1', 'payment_method' => 'pm_1'])
+        ->and($purchase->payment->providerRef)->toBe('seti_1')
+        ->and($purchase->payment->succeeded())->toBeTrue()
+        // A setup charges nothing.
+        ->and($purchase->payment->amount->minorUnits)->toBe(0);
+});
+
+it('returns null for any other setup, an unsucceeded one, or one missing what settles it', function (array $payload) {
+    expect((new StripeWebhookTranslator)->subscriptionSetup($payload))->toBeNull();
+})->with([
+    'another event' => [['type' => 'checkout.session.completed', 'data' => ['object' => ['metadata' => ['kind' => 'subscription']]]]],
+    'a card saved for something else' => [setupPayload([], ['kind' => 'credit_topup'])],
+    'not succeeded' => [setupPayload(['status' => 'requires_payment_method'])],
+    'no subscription' => [setupPayload([], ['order_reference' => ''])],
+    'no party' => [setupPayload([], ['party_ref' => ''])],
+    'no card' => [setupPayload(['payment_method' => null])],
+]);

@@ -27,6 +27,7 @@ use Rushing\Commerce\Data\Split;
 use Rushing\Commerce\Enums\Cadence;
 use Rushing\Commerce\Enums\PaymentActionKind;
 use Rushing\Commerce\Enums\PaymentStatus;
+use Rushing\Commerce\Enums\PurchaseKind;
 use Rushing\Commerce\Stripe\StripeClientFactory;
 use Stripe\Exception\CardException;
 use Stripe\PaymentIntent;
@@ -165,14 +166,30 @@ class StripeDriver implements MoneyInDriver, ReversesDisputedTransfers
     /**
      * A Checkout Session for a one-time Order: `embedded` returns its client secret, `redirect` its URL. The metadata is
      * exactly what {@see \Rushing\Commerce\Stripe\StripeWebhookTranslator::creditTopup()} reads back: `kind` selects the
-     * path and `party_ref` is the beneficiary, so settlement needs no new translator.
+     * path and `party_ref` is the beneficiary. A subscription's session is a card setup instead (mode=setup), read back by
+     * {@see \Rushing\Commerce\Stripe\StripeWebhookTranslator::subscriptionSetup()}.
      */
     private function hostedCheckout(Order $order, Merchant $merchant): Payment
     {
         $return = $order->returnUrl ?? throw new RuntimeException('A hosted leg needs Order::$returnUrl to send the customer back to.');
         $embedded = $order->hosted === PaymentActionKind::Embedded;
+        $metadata = array_filter([
+            'kind' => $order->kind->value,
+            'party_ref' => $order->customer->id,
+            'order_id' => $order->id,
+            'order_reference' => $order->reference,
+        ], fn ($value) => $value !== null);
 
-        $params = [
+        // BUY-04 (BQ-2): a subscription's hosted leg saves a card and charges NOTHING (no line items, no price): the
+        // host's own bills are the price of record. The metadata rides on the SetupIntent, where
+        // StripeWebhookTranslator::subscriptionSetup() reads it back from setup_intent.succeeded with the card.
+        $params = $order->kind === PurchaseKind::Subscription ? [
+            'mode' => 'setup',
+            'currency' => Str::lower($order->currency),
+            'client_reference_id' => $order->customer->id,
+            'metadata' => $metadata,
+            'setup_intent_data' => ['metadata' => $metadata],
+        ] : [
             'mode' => 'payment',
             'line_items' => array_map(fn (LineItem $line): array => [
                 'quantity' => $line->quantity,
@@ -183,12 +200,7 @@ class StripeDriver implements MoneyInDriver, ReversesDisputedTransfers
                 ],
             ], $order->lineItems),
             'client_reference_id' => $order->customer->id,
-            'metadata' => array_filter([
-                'kind' => $order->kind->value,
-                'party_ref' => $order->customer->id,
-                'order_id' => $order->id,
-                'order_reference' => $order->reference,
-            ], fn ($value) => $value !== null),
+            'metadata' => $metadata,
         ];
         if ($this->vault !== null) {
             $params['customer'] = $this->vault->resolveCustomer($order->customer, $merchant)->providerRef;
