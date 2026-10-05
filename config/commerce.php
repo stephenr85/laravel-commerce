@@ -173,6 +173,9 @@ return [
     |
     */
     'acp' => [
+        // Off by default (BUY-08): `Route::commerceAcpRoutes()` mounts the sell-side checkout, which charges an agent's
+        // delegate token, only when a host opts in. Custody `none` mounts nothing either way.
+        'sell_side' => (bool) env('COMMERCE_ACP_SELL_SIDE', false),
         'route_root' => env('COMMERCE_ACP_ROUTE_ROOT', 'agentic-commerce'),
 
         'fixtures' => [

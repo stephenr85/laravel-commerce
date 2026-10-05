@@ -15,7 +15,8 @@ beforeEach(function () {
         'demo-offer' => ['name' => 'Demo Offer', 'amount' => 900, 'currency' => 'USD'],
     ]);
 
-    // Mount the protocol under a bare group so the HTTP path is exercised end to end.
+    // Mount the protocol under a bare group so the HTTP path is exercised end to end; the host opts in (BUY-08).
+    config()->set('commerce.acp.sell_side', true);
     Route::middleware('api')->group(fn () => Route::commerceAcpRoutes());
 });
 

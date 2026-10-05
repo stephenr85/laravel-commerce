@@ -119,7 +119,12 @@ class CommerceServiceProvider extends PackageServiceProvider
         // The ACP protocol routes ship as brand-blind definitions; the host mounts
         // them inside its own public tenant group (prefix + tenancy middleware) by
         // calling Route::commerceAcpRoutes(). Mirrors the beam-commerce macro seam.
+        // BUY-08 (lead 13:23): it charges an agent's delegate token and awaits its money review, so it mounts NOTHING
+        // unless the host opts in (`commerce.acp.sell_side`, default off), and nothing for custody `none` (posture).
         Route::macro('commerceAcpRoutes', function (): void {
+            if (! config('commerce.acp.sell_side', false) || config('commerce.custody') === 'none') {
+                return;
+            }
             Route::prefix(config('commerce.acp.route_root', 'agentic-commerce'))
                 ->group(__DIR__.'/../routes/acp.php');
         });
