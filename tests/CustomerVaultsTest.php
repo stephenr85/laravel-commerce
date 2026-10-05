@@ -83,3 +83,23 @@ it('refuses an unknown rail name as the manager does, instead of a silent fake v
         expect(fn () => CustomerVaults::forRail(app()))->toThrow(InvalidArgumentException::class);
     }
 });
+
+it('remembers a default card on the fake rail, so an off-session charge has one to name (BUY-04 part B)', function () {
+    config(['commerce.driver' => 'fake', 'commerce.custody' => 'hosted']);
+    $vault = CustomerVaults::forRail(app());
+    $customer = new Customer(id: 'tenant-remember');
+    $merchant = new Merchant(id: 'tenant-remember');
+
+    expect($vault->paymentMethods($customer, $merchant))->toBe([]);
+
+    $vault->setDefaultPaymentMethod($customer, $merchant, 'fake_pm_1');
+    $cards = $vault->paymentMethods($customer, $merchant);
+    expect($cards)->toHaveCount(1)
+        ->and($cards[0]->ref)->toBe('fake_pm_1')
+        ->and($cards[0]->isDefault)->toBeTrue()
+        // Another party sees none of it.
+        ->and($vault->paymentMethods(new Customer(id: 'tenant-other'), $merchant))->toBe([]);
+
+    $vault->forgetPaymentMethod($customer, $merchant, 'fake_pm_1');
+    expect($vault->paymentMethods($customer, $merchant))->toBe([]);
+});
