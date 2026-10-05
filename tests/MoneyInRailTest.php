@@ -165,3 +165,39 @@ it('reads posture from commerce.custody alone, never from the driver', function 
     config()->set('commerce.custody', null);
     expect(app(MoneyIn::class)->posture())->toBe(CustodyPosture::Hosted);
 });
+
+it('C-3: custody none selects the none rail whatever commerce.driver or the caller names', function () {
+    config()->set('commerce.custody', 'none');
+    config()->set('commerce.driver', 'stripe');
+
+    expect(fn () => app(MoneyIn::class)->place(topupOrder(null)))->toThrow(MoneyInUnavailable::class)
+        ->and(fn () => app(MoneyIn::class)->place(topupOrder(null), 'stripe'))->toThrow(MoneyInUnavailable::class)
+        ->and(fn () => app(MoneyIn::class)->place(topupOrder(null), 'fake'))->toThrow(MoneyInUnavailable::class);
+    expect($this->stripe->requests)->toBe([]);
+});
+
+it('opens a hosted leg only for a kind that has a settling translator, on stripe and fake alike', function (string $driver, PurchaseKind $kind) {
+    // build.qa: StripeWebhookTranslator settles only credit_topup from checkout.session.completed. A hosted plan or market
+    // leg would charge and grant nothing, while the fake confirm page settled it: the fake must not prove what Stripe
+    // cannot do (BUY-3). Both rails refuse until a translator exists for the kind.
+    $order = Order::for(
+        customer: new Customer(id: 'party-1', name: 'Party', email: 'party@example.test'),
+        lineItems: [LineItem::for('Thing', Money::of(900))],
+        kind: $kind,
+        hosted: PaymentActionKind::Embedded,
+        returnUrl: 'https://acme.test/back',
+    );
+
+    expect(fn () => app(MoneyIn::class)->place($order, $driver))->toThrow(InvalidArgumentException::class, $kind->value);
+    expect($this->stripe->requests)->toBe([]);
+})->with(['stripe', 'fake'])->with([PurchaseKind::Perpetual, PurchaseKind::Subscription]);
+
+it('sends the fake portal back only to a path on this app, never a script or another origin', function () {
+    $portal = fn (string $return) => $this->get(route('commerce.fake.portal', ['return' => $return]))->assertOk()->getContent();
+
+    expect($portal('/ui/settings/billing'))->toContain('href="/ui/settings/billing"')
+        ->and($portal('javascript:alert(1)'))->not->toContain('javascript:')
+        ->and($portal('https://evil.example/x'))->not->toContain('evil.example')
+        ->and($portal('//evil.example/x'))->not->toContain('evil.example')
+        ->and($portal('/\\evil.example/x'))->not->toContain('evil.example');
+});

@@ -39,8 +39,8 @@ class FakeRailController
     public function confirm(string $payment): RedirectResponse
     {
         abort_if(app()->environment('production'), 404);
-        // One-shot: pull, so a replayed confirm settles nothing twice.
-        $pending = Cache::pull(FakeDriver::PENDING.$payment);
+        // One-shot: pull under a lock, so a replayed or concurrent confirm settles nothing twice.
+        $pending = Cache::lock(FakeDriver::PENDING.$payment.'.lock', 10)->get(fn () => Cache::pull(FakeDriver::PENDING.$payment));
         abort_if($pending === null, 404);
 
         /** @var Purchase $purchase */
@@ -77,9 +77,20 @@ class FakeRailController
     public function portal(): Response
     {
         abort_if(app()->environment('production'), 404);
-        $return = e((string) request()->query('return', '/'));
+        $return = e(self::localPath((string) request()->query('return', '/')));
 
         return response("<!doctype html><html><head><meta charset=\"utf-8\"><title>Fake billing portal</title></head><body><h1>Fake billing portal</h1><p>No money moves: this is the <code>fake</code> commerce rail.</p><a href=\"{$return}\">Return</a></body></html>");
+    }
+
+    /** Only a path on this app: no scheme (javascript:, https:), no protocol-relative `//host`. Otherwise `/`. */
+    private static function localPath(string $return): string
+    {
+        $origin = rtrim(url('/'), '/');
+        if (str_starts_with($return, $origin.'/')) {
+            $return = substr($return, strlen($origin));
+        }
+
+        return str_starts_with($return, '/') && ! str_starts_with($return, '//') && ! str_contains($return, '\\') ? $return : '/';
     }
 
     private function csrf(): string

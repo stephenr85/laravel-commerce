@@ -81,6 +81,15 @@ class MoneyInManager extends Manager implements Gated, Registry
         $this->register('none', fn (): NoneDriver => new NoneDriver, by: self::class);
     }
 
+    /**
+     * C-3: custody `none` selects the `none` rail whatever `commerce.driver` says and whatever a caller names, so a host
+     * that collects no money cannot be charged through a rail it never meant to use.
+     */
+    public function driver($driver = null)
+    {
+        return parent::driver($this->config->get('commerce.custody') === 'none' ? 'none' : $driver);
+    }
+
     public function getDefaultDriver(): string
     {
         return (string) $this->config->get('commerce.driver', 'fake');

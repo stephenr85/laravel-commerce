@@ -6,6 +6,7 @@ use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use InvalidArgumentException;
 use RuntimeException;
 use Rushing\Commerce\Contracts\CustomerVault;
 use Rushing\Commerce\Contracts\MerchantResolver;
@@ -66,6 +67,9 @@ class StripeDriver implements MoneyInDriver
         // BUY-02 (C-11): a hosted leg is a Checkout Session the customer completes; the Payment comes back
         // RequiresAction carrying one `action` and settles through checkout.session.completed.
         if ($order->hosted !== null) {
+            if (! $order->kind->settlesHosted()) {
+                throw new InvalidArgumentException("A hosted leg for a [{$order->kind->value}] purchase has no settling translator yet; it would charge and grant nothing (BUY-02).");
+            }
             if ($order->cadence === Cadence::Recurring) {
                 throw new RuntimeException('A hosted leg is for one-time Orders; subscriptions go through the SubscriptionBinder (purchase-walkthrough BUY-04).');
             }

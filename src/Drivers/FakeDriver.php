@@ -3,6 +3,7 @@
 namespace Rushing\Commerce\Drivers;
 
 use Illuminate\Support\Facades\Cache;
+use InvalidArgumentException;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Rushing\Commerce\Contracts\HoldsPendingPurchases;
@@ -60,6 +61,9 @@ class FakeDriver implements HoldsPendingPurchases, MoneyInDriver
         // BUY-02 (C-11): a hosted leg is a local confirm page, so the browser leg is exercised with no provider. It is a
         // redirect even when the Order asked for `embedded`: there is no provider session to mount under the fake.
         if ($order->hosted !== null) {
+            if (! $order->kind->settlesHosted()) {
+                throw new InvalidArgumentException("A hosted leg for a [{$order->kind->value}] purchase has no settling translator yet; it would charge and grant nothing (BUY-02).");
+            }
             $id = (string) Str::uuid();
 
             return new Payment(
