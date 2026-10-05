@@ -12,6 +12,9 @@ use Rushing\Commerce\Data\Receipt;
 use Rushing\Commerce\Data\SubscriptionState;
 use Rushing\Commerce\Enums\PaymentStatus;
 use Rushing\Commerce\Enums\PurchaseKind;
+use Rushing\Commerce\Exceptions\InvalidWebhookSignature;
+use Stripe\Exception\SignatureVerificationException;
+use Stripe\Webhook;
 
 /**
  * Translates raw Stripe webhook payloads into the engine's neutral inbound DTOs — the one
@@ -145,6 +148,24 @@ class StripeWebhookTranslator
      *
      * @param  array<string, mixed>  $payload
      */
+    /**
+     * Verify a Stripe webhook's signature and read the event (purchase-walkthrough BUY-02 part B4b): the one place an
+     * ingress touches the SDK's Webhook::constructEvent, so a host's verify profile names no `Stripe\` class. Throws the
+     * neutral {@see InvalidWebhookSignature} on a bad or stale signature.
+     *
+     * @return array{id: string, type: string, payload: array<string, mixed>}
+     */
+    public function verify(string $payload, string $signature, string $secret): array
+    {
+        try {
+            $event = Webhook::constructEvent($payload, $signature, $secret);
+        } catch (SignatureVerificationException $e) {
+            throw new InvalidWebhookSignature('Invalid signature.', 0, $e);
+        }
+
+        return ['id' => (string) $event->id, 'type' => (string) $event->type, 'payload' => $event->toArray()];
+    }
+
     public function dispute(array $payload): ?Dispute
     {
         if (($payload['type'] ?? null) !== 'charge.dispute.created') {
