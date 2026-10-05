@@ -33,7 +33,7 @@ class CashierInvoiceIssuer implements InvoiceIssuer
         $account = $this->billables->forCustomer($invoice->customer);
         $key = 'broker-bill-'.($invoice->billReference ?? $invoice->id);
 
-        // Keyed too: the account's stripe_id is saved on the caller's connection, inside its transaction, so a rollback
+        // Keyed too: the account's stripe_id is saved inside the caller's own database transaction, so a rollback
         // erases it and the retry creates the customer again. The key returns the SAME customer, so the replayed item
         // keys carry the same params (review-r1, build.qa). An existing customer is only read, as before.
         $account->createOrGetStripeCustomer([], ['idempotency_key' => "{$key}-customer"]);
