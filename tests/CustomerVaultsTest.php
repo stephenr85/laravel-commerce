@@ -75,3 +75,11 @@ it('refuses the fake vault in production, as the fake driver does (review-r1)', 
         app()['env'] = $previous;
     }
 });
+
+it('refuses an unknown rail name as the manager does, instead of a silent fake vault (build.qa)', function () {
+    foreach (['Stripe', 'stripe ', 'paypal'] as $driver) {
+        config(['commerce.driver' => $driver, 'commerce.custody' => 'hosted']);
+
+        expect(fn () => CustomerVaults::forRail(app()))->toThrow(InvalidArgumentException::class);
+    }
+});
