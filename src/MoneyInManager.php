@@ -6,6 +6,7 @@ use Closure;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Support\Manager;
 use InvalidArgumentException;
+use Rushing\Commerce\Contracts\MoneyInDriver;
 use Rushing\Commerce\Drivers\FakeDriver;
 use Rushing\Commerce\Drivers\NoneDriver;
 use Rushing\Commerce\Drivers\StripeDriver;
@@ -88,6 +89,16 @@ class MoneyInManager extends Manager implements Gated, Registry
     public function driver($driver = null)
     {
         return parent::driver($this->config->get('commerce.custody') === 'none' ? 'none' : $driver);
+    }
+
+    /**
+     * The rail a PAST charge was collected on, by name, never overridden by custody: C-3 governs collecting NEW money,
+     * while settling a provider event about money already moved (a dispute's transfer reversal) must reach the rail
+     * that moved it, even on a host that now collects nothing (BUY-02, build.qa).
+     */
+    public function provenance(string $rail): MoneyInDriver
+    {
+        return parent::driver($rail);
     }
 
     public function getDefaultDriver(): string

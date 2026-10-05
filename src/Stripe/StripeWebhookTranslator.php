@@ -163,6 +163,7 @@ class StripeWebhookTranslator
             amount: Money::of((int) $object['amount'], strtoupper((string) ($object['currency'] ?? 'usd'))),
             paymentIntentRef: $object['payment_intent'] ?? null,
             reason: $object['reason'] ?? null,
+            rail: 'stripe',
         );
     }
 }

@@ -21,6 +21,9 @@ class Dispute extends Data implements SchemaIdentity
         public Money $amount,
         public ?string $paymentIntentRef = null,
         public ?string $reason = null,
+        // The rail that collected the disputed charge (its provenance), set by the provider's translator. A reversal
+        // settles a PAST charge on that rail, whatever rail the host collects new money on today (BUY-02, build.qa).
+        public ?string $rail = null,
     ) {}
 
     public static function schemaName(): string
