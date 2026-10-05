@@ -25,8 +25,12 @@ class Customer extends Data implements SchemaIdentity
         return 'commerce/customer';
     }
 
+    /**
+     * Version 2 (purchase-walkthrough BUY-02): gained `type` (the party kind), additive and nullable, so the v1 -> v2 step is the
+     * identity on a stored payload. v1 stays frozen as written.
+     */
     public static function schemaVersion(): int
     {
-        return 1;
+        return 2;
     }
 }

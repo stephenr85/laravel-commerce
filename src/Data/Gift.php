@@ -23,8 +23,12 @@ class Gift extends Data implements SchemaIdentity
         return 'commerce/gift';
     }
 
+    /**
+     * Version 2 (purchase-walkthrough BUY-02): gained its nested Order/Payment/Customer, additive and nullable, so the v1 -> v2 step is the
+     * identity on a stored payload. v1 stays frozen as written.
+     */
     public static function schemaVersion(): int
     {
-        return 1;
+        return 2;
     }
 }
