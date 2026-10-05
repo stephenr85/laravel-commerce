@@ -157,6 +157,11 @@ class StripeWebhookTranslator
      */
     public function verify(string $payload, string $signature, string $secret): array
     {
+        // An empty secret signs with an empty key, which anyone can forge: never "verify" against it (build.qa).
+        if ($secret === '') {
+            throw new InvalidWebhookSignature('No webhook signing secret is configured.');
+        }
+
         try {
             $event = Webhook::constructEvent($payload, $signature, $secret);
         } catch (SignatureVerificationException $e) {

@@ -100,3 +100,12 @@ it('returns null for an unpaid or non-topup session', function () {
 
     expect($unpaid)->toBeNull()->and($notTopup)->toBeNull();
 });
+
+it('refuses to verify against an empty secret, which anyone could sign with (build.qa)', function () {
+    $payload = json_encode(['id' => 'evt_forged', 'object' => 'event', 'type' => 'invoice.paid', 'data' => ['object' => []]]);
+    $at = time();
+    $forged = 't='.$at.',v1='.hash_hmac('sha256', "{$at}.{$payload}", '');
+
+    expect(fn () => app(Rushing\Commerce\Stripe\StripeWebhookTranslator::class)->verify($payload, $forged, ''))
+        ->toThrow(Rushing\Commerce\Exceptions\InvalidWebhookSignature::class);
+});
