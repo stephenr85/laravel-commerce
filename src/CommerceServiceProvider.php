@@ -132,7 +132,9 @@ class CommerceServiceProvider extends PackageServiceProvider
         // Under the fake rail no Stripe SDK request may leave the process: a money path that still calls Cashier or
         // stripe-php directly fails loudly instead of reaching api.stripe.com (purchase-walkthrough gap 7).
         if (config('commerce.driver') === 'fake' && class_exists(\Stripe\ApiRequestor::class)) {
-            \Stripe\ApiRequestor::setHttpClient(new Stripe\FakeRailStripeHttpClient);
+            $guard = new Stripe\FakeRailStripeHttpClient;
+            \Stripe\ApiRequestor::setHttpClient($guard);
+            \Stripe\ApiRequestor::setStreamingHttpClient($guard);
         }
 
         if ($this->app->runningInConsole()) {

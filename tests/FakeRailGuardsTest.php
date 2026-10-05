@@ -22,6 +22,7 @@ use Stripe\StripeClient;
 
 afterEach(function () {
     ApiRequestor::setHttpClient(null);
+    ApiRequestor::setStreamingHttpClient(null);
     app()['env'] = 'testing';
 });
 
@@ -69,11 +70,20 @@ it('passes Stripe SDK requests through once the rail is not fake', function () {
     expect($sent)->toBe(['POST https://api.stripe.com/v1/customers']);
 });
 
-it('installs the guard at boot when the rail is fake', function () {
+it('refuses a streaming Stripe SDK request too, the SDK\'s second transport', function () {
+    config(['commerce.driver' => 'fake']);
+
+    expect(fn () => (new FakeRailStripeHttpClient)->requestStream('get', 'https://api.stripe.com/v1/files/x/contents', [], [], false, fn () => null))
+        ->toThrow(StripeDisabledOnFakeRail::class, 'fake rail: Stripe disabled (GET https://api.stripe.com/v1/files/x/contents)');
+});
+
+it('installs the guard at boot when the rail is fake, on both of stripe-php\'s transports', function () {
     $installed = (new ReflectionProperty(ApiRequestor::class, '_httpClient'))->getValue();
+    $streaming = (new ReflectionProperty(ApiRequestor::class, '_streamingHttpClient'))->getValue();
 
     expect(config('commerce.driver'))->toBe('fake')
-        ->and($installed)->toBeInstanceOf(FakeRailStripeHttpClient::class);
+        ->and($installed)->toBeInstanceOf(FakeRailStripeHttpClient::class)
+        ->and($streaming)->toBeInstanceOf(FakeRailStripeHttpClient::class);
 })->skip(fn () => ! property_exists(ApiRequestor::class, '_httpClient'), 'stripe-php keeps its client elsewhere');
 
 /** A stripe-php transport that records what would have been sent and answers with an empty object. */
