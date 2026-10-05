@@ -58,6 +58,9 @@ class CashierInvoiceIssuer implements InvoiceIssuer
             'pending_invoice_items_behavior' => 'exclude',
             'collection_method' => 'send_invoice',
             'days_until_due' => self::DAYS_UNTIL_DUE,
+            // Never let Stripe finalize (and email) this draft before its lines are attached; the send below finalizes
+            // it. A run that dies part-way leaves an un-sent draft the retry completes (review-r1).
+            'auto_advance' => false,
             'metadata' => ['bill_id' => (string) ($invoice->billReference ?? $invoice->id)],
         ], ['idempotency_key' => "{$key}-invoice"]);
 
