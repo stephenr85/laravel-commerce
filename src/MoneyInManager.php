@@ -8,6 +8,7 @@ use Illuminate\Support\Manager;
 use InvalidArgumentException;
 use Rushing\Commerce\Drivers\FakeDriver;
 use Rushing\Commerce\Drivers\StripeDriver;
+use Rushing\Commerce\Exceptions\FakeDriverInProduction;
 use Rushing\Popcorn\Registries\Authorizer;
 use Rushing\Popcorn\Registries\BasicRegistry;
 use Rushing\Popcorn\Registries\Gated;
@@ -84,6 +85,12 @@ class MoneyInManager extends Manager implements Gated, Registry
 
     public function createFakeDriver(): FakeDriver
     {
+        // A fake payment is always Succeeded, so in production it would grant the purchase for free. `commerce.driver`
+        // defaults to `fake`, which makes this the guard for a production host that never declared its rail.
+        if ($this->container->environment('production')) {
+            throw FakeDriverInProduction::make();
+        }
+
         return new FakeDriver;
     }
 

@@ -129,6 +129,12 @@ class CommerceServiceProvider extends PackageServiceProvider
         // only translates the provider event into the Purchase).
         Event::listen(Events\PurchaseCompleted::class, Listeners\FundWalletFromCreditTopup::class);
 
+        // Under the fake rail no Stripe SDK request may leave the process: a money path that still calls Cashier or
+        // stripe-php directly fails loudly instead of reaching api.stripe.com (purchase-walkthrough gap 7).
+        if (config('commerce.driver') === 'fake' && class_exists(\Stripe\ApiRequestor::class)) {
+            \Stripe\ApiRequestor::setHttpClient(new Stripe\FakeRailStripeHttpClient);
+        }
+
         if ($this->app->runningInConsole()) {
             $this->publishes([
                 __DIR__.'/../config/commerce.php' => $this->app->configPath('commerce.php'),
