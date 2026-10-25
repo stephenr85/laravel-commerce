@@ -169,3 +169,30 @@ it('drives the same feature path through both fake and stripe drivers to equival
 
     Event::assertDispatched(PurchaseCompleted::class);
 })->with(['fake', 'stripe']);
+
+it('keys an interactive charge on its Order id, so the same Order paid twice sends the same Idempotency-Key', function () {
+    $order = testOrder(paymentMethodRef: 'pm_saved_1');
+    app()->instance(CustomerVault::class, new RecordingCustomerVault);
+
+    app(MoneyIn::class)->place($order, 'stripe');
+    app(MoneyIn::class)->place($order, 'stripe');
+
+    $keys = collect($this->stripe->requests)
+        ->filter(fn ($r) => str_contains($r['url'], '/v1/payment_intents'))
+        ->map(fn ($r) => collect($r['headers'])->first(fn ($h) => str_starts_with($h, 'Idempotency-Key: ')))
+        ->values();
+
+    expect($keys)->toHaveCount(2)
+        ->and($keys[0])->toBe("Idempotency-Key: order:{$order->id}")
+        ->and($keys[1])->toBe($keys[0]);
+});
+
+it('keys two Orders apart, so a fresh purchase is never deduped into an earlier one', function () {
+    app(MoneyIn::class)->place($first = testOrder(), 'stripe');
+    app(MoneyIn::class)->place($second = testOrder(), 'stripe');
+
+    $headers = collect($this->stripe->requests)->map(fn ($r) => implode("\n", $r['headers']));
+
+    expect($headers[0])->toContain("Idempotency-Key: order:{$first->id}")
+        ->and($headers[1])->toContain("Idempotency-Key: order:{$second->id}");
+});

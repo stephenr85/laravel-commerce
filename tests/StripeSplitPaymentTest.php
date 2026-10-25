@@ -45,12 +45,14 @@ it('sends application_fee_amount + transfer_data.destination on a third-party de
         ->and($purchase->payment->providerRef)->toBe('pi_split_123')
         ->and($purchase->payment->split?->payeeRef)->toBe('acct_seller_1');
 
-    Http::assertSent(function ($request) {
+    Http::assertSent(function ($request) use ($order) {
         return $request->url() === 'https://api.stripe.com/v1/payment_intents'
             && $request->method() === 'POST'
             && (int) $request['amount'] === 10000
             && (int) $request['application_fee_amount'] === 1000
-            && $request['transfer_data']['destination'] === 'acct_seller_1';
+            && $request['transfer_data']['destination'] === 'acct_seller_1'
+            // The split path posts over Http, so its Idempotency-Key is a header it sets itself.
+            && $request->header('Idempotency-Key') === ["order:{$order->id}"];
     });
 });
 

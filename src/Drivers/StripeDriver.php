@@ -213,7 +213,7 @@ class StripeDriver implements MoneyInDriver, ReversesDisputedTransfers
             $params['cancel_url'] = $return;
         }
 
-        $session = $this->clients->for($merchant)->checkout->sessions->create($params);
+        $session = $this->clients->for($merchant)->checkout->sessions->create($params, ['idempotency_key' => self::idempotencyKey($order)]);
 
         return new Payment(
             id: (string) Str::uuid(),
@@ -265,10 +265,9 @@ class StripeDriver implements MoneyInDriver, ReversesDisputedTransfers
      */
     private function payWithSplit(Order $order, Merchant $merchant): Payment
     {
-        $response = $this->stripeHttp($merchant)->post(
-            'https://api.stripe.com/v1/payment_intents',
-            $this->intentParams($order, $merchant),
-        );
+        $response = $this->stripeHttp($merchant)
+            ->withHeaders(['Idempotency-Key' => self::idempotencyKey($order)])
+            ->post('https://api.stripe.com/v1/payment_intents', $this->intentParams($order, $merchant));
 
         if ($response->failed()) {
             return $this->failedSplitPayment($order, $merchant, $response);
@@ -507,20 +506,30 @@ class StripeDriver implements MoneyInDriver, ReversesDisputedTransfers
     }
 
     /**
-     * Per-request Stripe options. An off-session reload seeds a deterministic
-     * Idempotency-Key from the Order reference (the reload reason) so a network
-     * retry of the *same* window can never double-charge. Interactive charges keep
-     * Stripe's default (no key); the durable guard remains topUpOnce(reason).
+     * Per-request Stripe options: every charge carries an Idempotency-Key ({@see idempotencyKey()}).
      *
      * @return array<string, mixed>
      */
     private function intentOptions(Order $order): array
     {
+        return ['idempotency_key' => self::idempotencyKey($order)];
+    }
+
+    /**
+     * The Idempotency-Key a charge for this Order sends, so a retry of the same Order — a network
+     * retry, or a host replaying an attempt it persisted before calling — can never charge twice.
+     * An off-session reload keys on its Order reference (the reload reason), so a retry of the
+     * *same* window dedupes across Orders; the durable guard there remains topUpOnce(reason). Any
+     * other charge keys on its Order id: one Order, one charge. A host that wants a retry deduped
+     * reuses the Order (its id), not a fresh one.
+     */
+    private static function idempotencyKey(Order $order): string
+    {
         if ($order->offSession && $order->reference !== null) {
-            return ['idempotency_key' => $order->reference];
+            return $order->reference;
         }
 
-        return [];
+        return "order:{$order->id}";
     }
 
     /**

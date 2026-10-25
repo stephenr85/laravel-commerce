@@ -78,14 +78,16 @@ it('§2.4 probe: an embedded credit checkout is RequiresAction carrying one embe
 });
 
 it('opens a redirect-mode hosted checkout as a redirect action with the session url', function () {
-    $payment = app(MoneyIn::class)->place(topupOrder(PaymentActionKind::Redirect), 'stripe')->payment;
+    $payment = app(MoneyIn::class)->place($order = topupOrder(PaymentActionKind::Redirect), 'stripe')->payment;
 
     expect($payment->status)->toBe(PaymentStatus::RequiresAction)
         ->and($payment->action?->kind)->toBe(PaymentActionKind::Redirect)
         ->and($payment->action?->url)->toBe('https://checkout.stripe.test/c/cs_fake_123');
     $request = collect($this->stripe->requests)->first(fn ($r) => str_contains($r['url'], '/v1/checkout/sessions'));
     expect($request['params'])->not->toHaveKey('ui_mode')
-        ->and($request['params']['success_url'])->toContain('{CHECKOUT_SESSION_ID}');
+        ->and($request['params']['success_url'])->toContain('{CHECKOUT_SESSION_ID}')
+        // One Order, one session: a retried create returns the same session, never a second.
+        ->and(implode("\n", $request['headers']))->toContain("Idempotency-Key: order:{$order->id}");
 });
 
 it('answers a hosted leg on the fake rail with a local confirm page and no outbound call', function () {
