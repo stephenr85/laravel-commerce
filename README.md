@@ -31,7 +31,7 @@ php artisan vendor:publish --tag=commerce-config
 
 ```php
 // config/commerce.php
-'driver' => env('COMMERCE_DRIVER', 'fake'), // 'fake' | 'stripe'
+'driver' => env('COMMERCE_DRIVER', 'fake'), // 'fake' | 'stripe' | 'none'
 ```
 
 `laravel/cashier` and `stripe/stripe-php` are only needed for the `stripe` driver — a host using
@@ -72,6 +72,21 @@ what it needs:
 - `CustomerVault` — saved cards (see below); no default binding.
 - `UsageMeter` — the read side of the spend gate; each host keeps its own usage ledger.
 - `ComponentRegistry` / `BillingComponent` — the host registers its own priced components.
+
+## Registries
+
+This package declares four registries. [The commerce cluster](docs/registries/commerce.mdx) page
+says which one you reach for.
+
+- [`commerce.money-in.drivers`](docs/registries/commerce.money-in.drivers.mdx): the payment rails an
+  Order can be collected through. The package registers `fake`, `stripe` and `none`; `none` is the
+  rail of a host that collects no money, and it refuses every call.
+- [`commerce.billing.components`](docs/registries/commerce.billing.components.mdx): the priced
+  elements of a Plan that the bill composer runs.
+- [`commerce.billing.pricing-strategies`](docs/registries/commerce.billing.pricing-strategies.mdx):
+  the rules that turn a meter's usage into a charge. The package registers `linear`.
+- [`commerce.acp.feeds`](docs/registries/commerce.acp.feeds.mdx): one projector per catalog Data
+  class, for an Agentic Commerce Protocol product feed.
 
 ## Cost-of-goods metering
 
