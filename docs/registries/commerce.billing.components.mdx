@@ -1,0 +1,77 @@
+---
+title: Billing components
+segment: commerce.billing.components
+nav_order: 61
+excerpt: The priced elements of a Plan (per-seat fees, per-token fees) that the bill composer builds and runs.
+---
+
+# Billing components
+
+`commerce.billing.components` maps a **component type** to a factory for a `BillingComponent`: one
+priced element of a Plan, such as a per-seat fee or a per-token fee. `BillComposer` reads it. For
+each entry in a Plan's component list it builds the component named by `type`, calls
+`calculate($period, $config)` and totals the line items into a `ComposedBill`.
+
+{/* registry-facts:start — generated from the #[IsRegistry] declaration by `splicewire:beam:docs:registries:scaffold`. Rerun the command; do not edit between these markers. */}
+
+- **Root:** `commerce.billing.components`
+- **Entries:** `Closure`
+- **Duplicate keys:** Supersede — a later registration under a taken key replaces the earlier entry, in its place
+- **Population:** Optional — an empty registry is normal
+- **Order:** `61` (display order, ascending)
+- **Declared by:** `Rushing\Commerce\Billing\ComponentRegistry`
+
+{/* registry-facts:end */}
+
+## Who fills it
+
+The engine ships **no components**. What you charge for is your vocabulary, not the engine's, so
+your application registers every type its Plans name:
+
+```php
+use Rushing\Commerce\Billing\ComponentRegistry;
+
+$this->app->make(ComponentRegistry::class)
+    ->register('PerSeatFees', fn () => new PerSeatFees($tenant));
+```
+
+An entry is the **factory**, not the component. A component is usually built for one billing party
+(`$tenant` above), so a closure builds a fresh one per bill instead of sharing an instance. A bare
+`BillingComponent` is accepted too, and is wrapped into a factory for you. `make($type)` builds the
+component; `resolve($type)` returns the factory.
+
+Because the factory often needs the billing party, you can also build a `ComponentRegistry` of your
+own for each bill run and hand it to a `BillComposer`, rather than registering into the shared one.
+
+## Keys
+
+Component types are stored on Plans, usually in PascalCase (`['type' => 'PerSeatFees']`), and they
+can't be renamed once persisted. The registry derives a key segment from each one, so
+`PerSeatFees` is stored as `per-seat-fees`, and you keep using your own spelling everywhere:
+`register('PerSeatFees', …)`, `has('PerSeatFees')` and `make('PerSeatFees')` all find the same entry.
+`types()` lists the derived spellings.
+
+## A miss throws
+
+A Plan line naming a type nobody registered is a configuration error, so `make()` throws instead of
+falling back to a default. An empty registry is still normal for an application that composes no
+bills at all.
+
+## Duplicates
+
+The policy is **supersede**: registering a taken type replaces its factory.
+
+## Related registries
+
+- [`commerce.billing.pricing-strategies`](commerce.billing.pricing-strategies): the rule a metered
+  component uses to turn usage into a charge.
+- [The commerce registries](commerce): how the four fit together.
+
+## Going deeper
+
+The source is
+[`ComponentRegistry`](https://github.com/stephenr85/laravel-commerce/blob/main/src/Billing/ComponentRegistry.php);
+the contract is
+[`BillingComponent`](https://github.com/stephenr85/laravel-commerce/blob/main/src/Billing/Contracts/BillingComponent.php).
+The [README's metering section](https://github.com/stephenr85/laravel-commerce#cost-of-goods-metering)
+covers bills, invoices and settlement.

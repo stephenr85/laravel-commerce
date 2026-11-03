@@ -1,0 +1,75 @@
+---
+title: Pricing strategies
+segment: commerce.billing.pricing-strategies
+nav_order: 62
+excerpt: The named rules that turn a meter's recorded usage into a charge. linear ships; the rest are yours.
+---
+
+# Pricing strategies
+
+`commerce.billing.pricing-strategies` holds **pricing strategies** by name. A strategy turns a
+period's recorded usage into a charge in fractional USD. It says which input it consumes (`'cost'`
+or `'quantity'`) and prices it with `price($providerCostUsd, $quantity, $params)`. A billing
+component that charges for metered usage reads the strategy name from its config and resolves it
+here, so each meter can price itself by its own rule.
+
+{/* registry-facts:start — generated from the #[IsRegistry] declaration by `splicewire:beam:docs:registries:scaffold`. Rerun the command; do not edit between these markers. */}
+
+- **Root:** `commerce.billing.pricing-strategies`
+- **Entries:** `Rushing\Commerce\Billing\Pricing\PricingStrategy`
+- **Duplicate keys:** Supersede — a later registration under a taken key replaces the earlier entry, in its place
+- **Population:** Optional — an empty registry is normal
+- **Order:** `62` (display order, ascending)
+- **Declared by:** `Rushing\Commerce\Billing\Pricing\PricingStrategyRegistry`
+
+{/* registry-facts:end */}
+
+## What ships
+
+One strategy, **`linear`**: the provider cost times a flat markup (`$params['markup']`, default
+`1.0`). It is registered when the registry is constructed, so it's always present.
+
+## Adding a strategy
+
+Register a `PricingStrategy` under a name your Plans' component config can refer to:
+
+```php
+use Rushing\Commerce\Billing\Pricing\PricingStrategy;
+use Rushing\Commerce\Billing\Pricing\PricingStrategyRegistry;
+
+final class PerUnitStrategy implements PricingStrategy
+{
+    public function price(float $providerCostUsd, float $quantity, array $params): float
+    {
+        return $quantity * (float) ($params['rate'] ?? 0.0);
+    }
+
+    public function consumes(): string
+    {
+        return 'quantity';
+    }
+}
+
+$this->app->make(PricingStrategyRegistry::class)->register('per-unit', new PerUnitStrategy);
+```
+
+`resolve('per-unit')` returns it, and `names()` lists every registered name. A name nobody registered
+throws, because the name comes from stored Plan config and a typo there is a configuration error.
+
+## Duplicates
+
+The policy is **supersede**. Registering `linear` replaces the shipped strategy, so you can change
+how every linear meter is priced without touching the components that use it.
+
+## Related registries
+
+- [`commerce.billing.components`](commerce.billing.components): the components that resolve their
+  strategy here.
+- [The commerce registries](commerce): how the four fit together.
+
+## Going deeper
+
+The source is
+[`PricingStrategyRegistry`](https://github.com/stephenr85/laravel-commerce/blob/main/src/Billing/Pricing/PricingStrategyRegistry.php);
+the contract is
+[`PricingStrategy`](https://github.com/stephenr85/laravel-commerce/blob/main/src/Billing/Pricing/PricingStrategy.php).

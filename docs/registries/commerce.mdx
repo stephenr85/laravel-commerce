@@ -1,0 +1,50 @@
+---
+title: The commerce registries
+segment: commerce
+nav_order: 60
+excerpt: The four extension points of the money-in engine, and which one you reach for.
+---
+
+# The commerce registries
+
+[`rushing/laravel-commerce`](https://github.com/stephenr85/laravel-commerce) declares four registries
+under `commerce.`. Each is a place where your application, or a package layered on top, plugs its own
+vocabulary into an engine that ships deliberately neutral: the engine knows how to take a payment,
+compose a bill and publish a product feed, but not what your rails, your priced components or your
+catalog are.
+
+Which one you reach for:
+
+- **Collect money through a new payment provider**: [`commerce.money-in.drivers`](commerce.money-in.drivers).
+  `fake`, `stripe` and `none` ship registered.
+- **Price a line on a bill (seats, tokens, storage)**:
+  [`commerce.billing.components`](commerce.billing.components). Ships empty; your application
+  registers every component.
+- **Turn metered usage into a charge by a rule other than a flat markup**:
+  [`commerce.billing.pricing-strategies`](commerce.billing.pricing-strategies). `linear` ships
+  registered.
+- **Publish your catalog as an Agentic Commerce Protocol product feed**:
+  [`commerce.acp.feeds`](commerce.acp.feeds). Ships empty; you register one projector per catalog
+  Data class.
+
+## How they fit together
+
+The two billing registries work as a pair. `BillComposer` walks a Plan's component list, builds
+each component from `commerce.billing.components` and asks it for a line item. A component that
+charges for metered usage looks up its pricing rule in `commerce.billing.pricing-strategies` by the
+name in its config. The finished bill is then collected through whichever driver
+`commerce.money-in.drivers` resolves. The ACP feed registry stands apart: it is the discovery half
+of agentic checkout, read when the feed is served, not when money moves.
+
+## What a duplicate means here
+
+All four **supersede**: registering a taken key replaces the entry. That is how you override what
+ships, for example by registering your own `stripe` driver or your own `linear` strategy. The one
+sharp edge is the ACP feed registry: it keys each projector by its subject class's short name, and two
+subjects that share a short name throw rather than replace each other silently.
+
+## Going deeper
+
+The [laravel-commerce README](https://github.com/stephenr85/laravel-commerce#readme) covers the
+money-in primitive, metering, stored value and gifting end to end. Each page below has the details
+for one registry.

@@ -1,0 +1,85 @@
+---
+title: Money-in drivers
+segment: commerce.money-in.drivers
+nav_order: 60
+excerpt: The payment rails an Order can be collected through (fake, stripe, none), as the factories that build them.
+---
+
+# Money-in drivers
+
+`commerce.money-in.drivers` holds the **rails** the money-in engine can collect through. Each entry
+is a closure that builds a `MoneyInDriver`, the small contract (`name()`, `pay()`, `refund()`,
+`manage()`) that turns a neutral `Order` into a `Payment`. `MoneyIn::place()` picks a driver, and
+that driver is the only part of a purchase that knows which provider moved the money.
+
+{/* registry-facts:start — generated from the #[IsRegistry] declaration by `splicewire:beam:docs:registries:scaffold`. Rerun the command; do not edit between these markers. */}
+
+- **Root:** `commerce.money-in.drivers`
+- **Entries:** `Closure`
+- **Duplicate keys:** Supersede — a later registration under a taken key replaces the earlier entry, in its place
+- **Population:** Optional — an empty registry is normal
+- **Order:** `60` (display order, ascending)
+- **Declared by:** `Rushing\Commerce\MoneyInManager`
+
+{/* registry-facts:end */}
+
+## What ships
+
+Three drivers are registered when `MoneyInManager` is constructed:
+
+- **`fake`** records the whole `Order → Payment → Receipt → Purchase` graph with no network, so seeds
+  and tests run offline. It refuses to build in the `production` environment, because a fake payment
+  always succeeds.
+- **`stripe`** collects real money through the Stripe SDK on the billing party's own account.
+- **`none`** is the rail of an application that collects no money. It is legal in production and
+  refuses every verb.
+
+## Selecting a driver
+
+`config('commerce.driver')` (`COMMERCE_DRIVER`, default `fake`) **selects** among the registered
+drivers; it never registers one. A caller can also name a driver per call, as in
+`MoneyIn::place($order, driver: 'stripe')`. When `commerce.custody` is `none`, every new charge goes
+through the `none` rail whatever the config or the caller asks for.
+
+## Adding a driver
+
+`MoneyInManager` is a Laravel `Manager`, so the familiar `extend()` works and is recorded in the
+registry:
+
+```php
+use Rushing\Commerce\MoneyInManager;
+
+public function boot(): void
+{
+    $this->app->make(MoneyInManager::class)
+        ->extend('adyen', fn () => $this->app->make(AdyenDriver::class));
+}
+```
+
+`register('adyen', fn () => …)` is the same call. Two rules hold for every entry:
+
+- **It must be a closure.** Registering a built driver is refused, because it would construct the
+  provider client at boot.
+- **The key is one segment.** A driver key is a `Manager` driver name, so `adyen` is legal and
+  `adyen.eu` is refused.
+
+Listing the registry's keys never builds a driver. `resolve('stripe')` hands back the factory, and
+`driver('stripe')` builds and memoizes the driver itself.
+
+## Duplicates
+
+The policy is **supersede**. Registering `stripe` again replaces the shipped factory, which is how
+you swap in a driver of your own under a name callers already use.
+
+## Related registries
+
+- [The commerce registries](commerce): how the four fit together.
+
+## Going deeper
+
+The source is
+[`MoneyInManager`](https://github.com/stephenr85/laravel-commerce/blob/main/src/MoneyInManager.php);
+the driver contract is
+[`MoneyInDriver`](https://github.com/stephenr85/laravel-commerce/blob/main/src/Contracts/MoneyInDriver.php).
+The [README's money-in section](https://github.com/stephenr85/laravel-commerce#money-in) shows a
+purchase end to end.

@@ -1,0 +1,74 @@
+---
+title: ACP product-feed projectors
+segment: commerce.acp.feeds
+nav_order: 63
+excerpt: One projector per catalog Data class, turning your catalog into an Agentic Commerce Protocol product feed.
+---
+
+# ACP product-feed projectors
+
+`commerce.acp.feeds` holds the projectors that publish your catalog as an **Agentic Commerce
+Protocol (ACP) product feed**, the listing an AI agent reads to discover what it can buy. Each entry
+is an `AcpFeedProjector`: it names the Data class it handles (`subject()`) and turns one instance into
+a feed item (`project()`). `AcpFeedRegistry::feed($items)` projects a list of catalog Data objects
+into the feed's `products` list, dispatching each one to its projector by class.
+
+{/* registry-facts:start — generated from the #[IsRegistry] declaration by `splicewire:beam:docs:registries:scaffold`. Rerun the command; do not edit between these markers. */}
+
+- **Root:** `commerce.acp.feeds`
+- **Entries:** `Rushing\Commerce\Acp\Feed\AcpFeedProjector`
+- **Duplicate keys:** Supersede — a later registration under a taken key replaces the earlier entry, in its place
+- **Population:** Optional — an empty registry is normal
+- **Order:** `63` (display order, ascending)
+- **Declared by:** `Rushing\Commerce\Acp\Feed\AcpFeedRegistry`
+
+{/* registry-facts:end */}
+
+## Who fills it
+
+The package ships **no projectors**, because it doesn't know your catalog. It does ship
+`AttributeAcpFeedProjector`, which projects any Data class whose properties carry `#[AcpFeedProperty]`,
+so most applications register one line per catalog class:
+
+```php
+use Rushing\Commerce\Acp\Feed\AcpFeedRegistry;
+use Rushing\Commerce\Acp\Feed\AttributeAcpFeedProjector;
+
+public function boot(): void
+{
+    $this->app->make(AcpFeedRegistry::class)
+        ->register(new AttributeAcpFeedProjector(OfferData::class));
+}
+```
+
+Write your own `AcpFeedProjector` when a feed item needs more than a property-to-field mapping.
+
+## Keys
+
+A projector is registered by itself, and the key comes from its subject's short class name:
+`OfferData` becomes `offer-data`. Every read accepts the class too, so `has(OfferData::class)` and
+`has('offer-data')` are the same question.
+
+`for($class)` returns the projector for a class and throws an `InvalidArgumentException` naming that
+class when there is none, so a catalog item without a projector fails the feed loudly instead of
+disappearing from it.
+
+## Duplicates
+
+The policy is **supersede**: registering a second projector for the same subject replaces the first.
+Two *different* subjects that share a short name (`App\Shop\OfferData` and `App\Rentals\OfferData`)
+would derive the same key, so that registration throws rather than silently replacing one with the
+other. Rename one of the classes. A projector registered under an explicit key, as in
+`register('rental-offer-data', $projector)`, is reachable by that key but not through `for()` or
+`feed()`, which always derive the key from the class.
+
+## Related registries
+
+- [The commerce registries](commerce): how the four fit together.
+
+## Going deeper
+
+The source is
+[`AcpFeedRegistry`](https://github.com/stephenr85/laravel-commerce/blob/main/src/Acp/Feed/AcpFeedRegistry.php);
+the attribute-driven projector is
+[`AttributeAcpFeedProjector`](https://github.com/stephenr85/laravel-commerce/blob/main/src/Acp/Feed/AttributeAcpFeedProjector.php).
