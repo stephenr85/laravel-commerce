@@ -114,8 +114,6 @@ class CommerceServiceProvider extends PackageServiceProvider
 
     public function packageBooted(): void
     {
-        $this->describeRegistries();
-
         // The ACP protocol routes ship as brand-blind definitions; the host mounts
         // them inside its own public tenant group (prefix + tenancy middleware) by
         // calling Route::commerceAcpRoutes(). Mirrors the beam-commerce macro seam.
@@ -160,13 +158,4 @@ class CommerceServiceProvider extends PackageServiceProvider
         }
 
     }
-
-    /**
-     * Describe this package's four registries into the shared index — registry-kernel ticket 38.
-     *
-     * Declaring and indexing are two acts (21 D1), and an owner registers DOWN into the index from its
-     * own boot(); the index never reaches up. Booted rather than registered because `describe()` forces
-     * each singleton to construct, and `MoneyInManager`'s construction reads the container.
-     */
-    private function describeRegistries(): void {}
 }

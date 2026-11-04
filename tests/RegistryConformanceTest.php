@@ -150,3 +150,17 @@ it('refuses two projectors whose subjects share a basename', function () {
 
     expect(fn () => $registry->register($collider))->toThrow(InvalidArgumentException::class);
 });
+
+/*
+ * The index learns these four roots from their `#[IsRegistry]` declarations and resolves each one lazily
+ * through the container, so routing a root answers with the very singleton the package binds. Nothing in
+ * this provider's boot has to describe them.
+ */
+it('routes each declared root to the container singleton without a hand-written describe()', function () {
+    $index = app(RegistryIndex::class);
+
+    expect($index->routeTo('commerce.money-in.drivers'))->toBe(app(MoneyInManager::class))
+        ->and($index->routeTo('commerce.billing.components'))->toBe(app(ComponentRegistry::class))
+        ->and($index->routeTo('commerce.billing.pricing-strategies'))->toBe(app(PricingStrategyRegistry::class))
+        ->and($index->routeTo('commerce.acp.feeds'))->toBe(app(AcpFeedRegistry::class));
+});
