@@ -76,10 +76,10 @@ class MoneyInManager extends Manager implements Gated, Registry
 
         // The two shipped rails are entries like any other. Registering them rather than leaning on
         // Manager's create*Driver() convention is what lets keys() report them at all.
-        $this->register('fake', fn (): FakeDriver => $this->createFakeDriver(), by: self::class);
-        $this->register('stripe', fn (): StripeDriver => $this->createStripeDriver(), by: self::class);
+        $this->register('fake', fn (): FakeDriver => $this->createFakeDriver(), by: 'rushing/laravel-commerce');
+        $this->register('stripe', fn (): StripeDriver => $this->createStripeDriver(), by: 'rushing/laravel-commerce');
         // BUY-4: the rail of a host that collects no money. Legal in production, unlike `fake`; it refuses every verb.
-        $this->register('none', fn (): NoneDriver => new NoneDriver, by: self::class);
+        $this->register('none', fn (): NoneDriver => new NoneDriver, by: 'rushing/laravel-commerce');
     }
 
     /**
@@ -155,7 +155,8 @@ class MoneyInManager extends Manager implements Gated, Registry
      */
     public function extend($driver, Closure $callback): static
     {
-        return $this->register($driver, $callback, by: 'extend');
+        // No $by: the caller's registrant scope names who extended the manager.
+        return $this->register($driver, $callback);
     }
 
     public function has(RegistryKey|string $key): bool

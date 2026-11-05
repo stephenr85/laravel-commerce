@@ -31,7 +31,7 @@ class PricingStrategyRegistry implements Gated, Registry
     {
         $this->entries = BasicRegistry::for($this);
 
-        $this->register('linear', new LinearStrategy, by: self::class);
+        $this->register('linear', new LinearStrategy, by: 'rushing/laravel-commerce');
     }
 
     /**

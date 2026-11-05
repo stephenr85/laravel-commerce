@@ -24,6 +24,7 @@ use Rushing\Commerce\Stripe\ConfigMerchantResolver;
 use Rushing\Commerce\Stripe\ConfigStripeClients;
 use Rushing\Commerce\Stripe\StripeClientFactory;
 use Rushing\Commerce\Support\NullPaymentMethodResolver;
+use Rushing\Popcorn\Registries\ScopesRegistrant;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 
@@ -56,6 +57,14 @@ use Spatie\LaravelPackageTools\PackageServiceProvider;
  */
 class CommerceServiceProvider extends PackageServiceProvider
 {
+    use ScopesRegistrant;
+
+    /** Every registry write in register()/boot() that names no `$by` records this package. */
+    protected function registrant(): string
+    {
+        return 'rushing/laravel-commerce';
+    }
+
     public function configurePackage(Package $package): void
     {
         $package
