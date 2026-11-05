@@ -60,8 +60,9 @@ throws, because the name comes from stored Plan config and a typo there is a con
 
 ## Duplicates
 
-The policy is **supersede**. Registering `linear` replaces the shipped strategy, so you can change
-how every linear meter is priced without touching the components that use it.
+The [**duplicate-key policy**](/beam/docs/foundations/registries#key-policies) is
+**supersede**. Registering `linear` replaces the shipped strategy, so you can change how every
+linear meter is priced without touching the components that use it.
 
 ## Related registries
 

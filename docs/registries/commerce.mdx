@@ -38,10 +38,11 @@ of agentic checkout, read when the feed is served, not when money moves.
 
 ## What a duplicate means here
 
-All four **supersede**: registering a taken key replaces the entry. That is how you override what
-ships, for example by registering your own `stripe` driver or your own `linear` strategy. The one
-sharp edge is the ACP feed registry: it keys each projector by its subject class's short name, and two
-subjects that share a short name throw rather than replace each other silently.
+All four share one [**duplicate-key policy**](/beam/docs/foundations/registries#key-policies),
+**supersede**: registering a taken key replaces the entry. That is how you override what ships, for
+example by registering your own `stripe` driver or your own `linear` strategy. The one sharp edge is
+the ACP feed registry: it keys each projector by its subject class's short name, and two subjects
+that share a short name throw rather than replace each other silently.
 
 ## Going deeper
 

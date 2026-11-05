@@ -57,8 +57,9 @@ disappearing from it.
 
 ## Duplicates
 
-The policy is **supersede**: registering a second projector for the same subject replaces the first.
-Two *different* subjects that share a short name (`App\Shop\OfferData` and `App\Rentals\OfferData`)
+The [**duplicate-key policy**](/beam/docs/foundations/registries#key-policies) is
+**supersede**: registering a second projector for the same subject replaces the first. Two
+*different* subjects that share a short name (`App\Shop\OfferData` and `App\Rentals\OfferData`)
 would derive the same key, so that registration throws rather than silently replacing one with the
 other. Rename one of the classes. A projector registered under an explicit key, as in
 `register('rental-offer-data', $projector)`, is reachable by that key but not through `for()` or

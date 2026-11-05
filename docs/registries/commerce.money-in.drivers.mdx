@@ -70,8 +70,9 @@ Listing the registry's keys never builds a driver. `resolve('stripe')` hands bac
 
 ## Duplicates
 
-The policy is **supersede**. Registering `stripe` again replaces the shipped factory, which is how
-you swap in a driver of your own under a name callers already use.
+The [**duplicate-key policy**](/beam/docs/foundations/registries#key-policies) is
+**supersede**. Registering `stripe` again replaces the shipped factory, which is how you swap in a
+driver of your own under a name callers already use.
 
 ## Related registries
 
