@@ -21,19 +21,37 @@ use Spatie\LaravelPackageTools\PackageServiceProvider;
  * mechanical check is duplicated here rather than pulling in that dependency. Both build on
  * the same moat-free foundation ({@see DoctorAudit}, {@see Finding} from `rushing/laravel-doctor`).
  *
- * A subclass names its own package + {@see PackageServiceProvider}. Purely mechanical
+ * It is constructed with the package's composer name and its {@see PackageServiceProvider}
+ * class. Until make-surface 04 it was abstract, and a two-method subclass named the two. The
+ * lead's ruling A (2026-11-05) kept the audit here and made it concrete, so a package
+ * constructs it instead of subclassing it. Purely mechanical
  * (source-text + filesystem inspection), zero semantic judgment: fails on a stray
  * `loadMigrationsFrom(` over the package's OWN vendor source, warns when `->hasMigrations(`
  * is absent, fails on a real (non-`.stub`) `.php` migration file sitting alongside the stubs.
  */
-abstract class StubMigrationsAudit implements DoctorAudit
+final class StubMigrationsAudit implements DoctorAudit
 {
-    abstract protected function packageName(): string;
+    /**
+     * @param  string  $package  the package's composer name, as the check names it
+     * @param  class-string  $provider  the package's service provider, whose source file is read
+     */
+    public function __construct(
+        private string $package,
+        private string $provider,
+    ) {}
+
+    private function packageName(): string
+    {
+        return $this->package;
+    }
 
     /**
      * @return class-string
      */
-    abstract protected function serviceProviderClass(): string;
+    private function serviceProviderClass(): string
+    {
+        return $this->provider;
+    }
 
     /**
      * @return list<Finding>
