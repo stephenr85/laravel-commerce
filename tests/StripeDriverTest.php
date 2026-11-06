@@ -215,6 +215,10 @@ it('names the purchase kind and the Order reference on an off-session PaymentInt
         ->and($request['params']['off_session'])->toBe('true')
         ->and($request['params']['confirm'])->toBe('true')
         ->and($request['params']['payment_method'])->toBe('pm_mandate_1')
+        // Stripe refuses error_on_requires_action on a PaymentIntent whose payment methods the Dashboard manages
+        // (measured live in test mode, STRIPE-BILLING): an off-session charge names its type, the saved card.
+        ->and($request['params']['error_on_requires_action'])->toBe('true')
+        ->and($request['params']['payment_method_types'])->toBe(['card'])
         // One Stripe charge per attempt: the attempt reference is the Idempotency-Key.
         ->and(collect($request['headers'])->first(fn ($h) => str_starts_with($h, 'Idempotency-Key: ')))->toBe('Idempotency-Key: bill-b1-attempt-a1');
 });

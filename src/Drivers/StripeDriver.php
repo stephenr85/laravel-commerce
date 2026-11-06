@@ -518,6 +518,11 @@ class StripeDriver implements MoneyInDriver, ReversesDisputedTransfers, SettlesF
                 // No user is present to answer a step-up, so turn a requires_action into a
                 // hard decline (CardException) the host can classify, not a limbo intent.
                 $params['error_on_requires_action'] = true;
+                // Stripe refuses error_on_requires_action on an intent whose payment methods the Dashboard manages
+                // ("can't be used with PaymentIntents which use payment methods managed through the Dashboard"; measured
+                // in test mode, owner-review-20261102 STRIPE-BILLING): every off-session charge failed there. The saved
+                // payment method charged unattended is a card (a plan's mandate, an auto-reload card), so name the type.
+                $params['payment_method_types'] = ['card'];
             }
         }
 
