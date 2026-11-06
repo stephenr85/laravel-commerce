@@ -196,3 +196,42 @@ it('keys two Orders apart, so a fresh purchase is never deduped into an earlier 
     expect($headers[0])->toContain("Idempotency-Key: order:{$first->id}")
         ->and($headers[1])->toContain("Idempotency-Key: order:{$second->id}");
 });
+
+it('names the purchase kind and the Order reference on an off-session PaymentIntent, so a webhook can find the charge it settles (owner-review-20261102 STRIPE-BILLING)', function () {
+    app()->instance(CustomerVault::class, new RecordingCustomerVault);
+
+    $order = Rushing\Commerce\Data\Order::for(
+        customer: new Rushing\Commerce\Data\Customer(id: 'tenant-acme', type: 'tenant'),
+        lineItems: [Rushing\Commerce\Data\LineItem::for('Bill 2026-10', Money::of(9900))],
+        kind: PurchaseKind::Subscription,
+        reference: 'bill-b1-attempt-a1',
+        paymentMethodRef: 'pm_mandate_1',
+        offSession: true,
+    );
+    app(MoneyIn::class)->place($order, 'stripe');
+
+    $request = $this->stripe->requests[0];
+    expect($request['params']['metadata'])->toMatchArray(['kind' => 'subscription', 'order_reference' => 'bill-b1-attempt-a1', 'customer_id' => 'tenant-acme'])
+        ->and($request['params']['off_session'])->toBe('true')
+        ->and($request['params']['confirm'])->toBe('true')
+        ->and($request['params']['payment_method'])->toBe('pm_mandate_1')
+        // One Stripe charge per attempt: the attempt reference is the Idempotency-Key.
+        ->and(collect($request['headers'])->first(fn ($h) => str_starts_with($h, 'Idempotency-Key: ')))->toBe('Idempotency-Key: bill-b1-attempt-a1');
+});
+
+it('normalizes an off-session card_declined into a Failed Payment and authentication_required into RequiresAction, each with the code and the intent id', function () {
+    app()->instance(CustomerVault::class, new RecordingCustomerVault);
+
+    $this->stripe->paymentIntentError = ['type' => 'card_error', 'code' => 'card_declined', 'decline_code' => 'generic_decline', 'message' => 'Your card was declined.', 'payment_intent' => ['id' => 'pi_declined_1', 'object' => 'payment_intent']];
+    $declined = app(MoneyIn::class)->place(testOrder(paymentMethodRef: 'pm_1', offSession: true), 'stripe')->payment;
+
+    $this->stripe->paymentIntentError = ['type' => 'card_error', 'code' => 'authentication_required', 'message' => 'Authentication required.', 'payment_intent' => ['id' => 'pi_sca_1', 'object' => 'payment_intent']];
+    $stepUp = app(MoneyIn::class)->place(testOrder(paymentMethodRef: 'pm_1', offSession: true), 'stripe')->payment;
+
+    expect($declined->status)->toBe(PaymentStatus::Failed)
+        ->and($declined->errorCode)->toBe('generic_decline')
+        ->and($declined->providerRef)->toBe('pi_declined_1')
+        ->and($stepUp->status)->toBe(PaymentStatus::RequiresAction)
+        ->and($stepUp->errorCode)->toBe('authentication_required')
+        ->and($stepUp->providerRef)->toBe('pi_sca_1');
+});

@@ -200,6 +200,61 @@ class StripeWebhookTranslator
     }
 
     /**
+     * The outcome of a PaymentIntent this engine created (owner-review-20261102 STRIPE-BILLING):
+     * `payment_intent.succeeded` → a Purchase whose Payment succeeded, `payment_intent.payment_failed` → one that failed
+     * (RequiresAction when Stripe's `last_payment_error.code` is `authentication_required`, a step-up no one was present
+     * to answer). The intent's metadata, written by StripeDriver::intentParams(), names the purchase `kind`, the Order's
+     * `order_reference` (a host's own key for the charge, e.g. a plan Bill's attempt) and the party (`customer_id`); the
+     * grant carries the reference and the event id. The decline code rides as the Payment's errorCode. Null for any other
+     * event, or an intent without that metadata: not ours to settle.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    public function paymentIntent(array $payload): ?Purchase
+    {
+        $type = $payload['type'] ?? null;
+        if (! in_array($type, ['payment_intent.succeeded', 'payment_intent.payment_failed'], true)) {
+            return null;
+        }
+
+        $intent = $payload['data']['object'] ?? [];
+        $metadata = $intent['metadata'] ?? [];
+        $kind = PurchaseKind::tryFrom((string) ($metadata['kind'] ?? ''));
+        $reference = $metadata['order_reference'] ?? null;
+        if ($kind === null || ! is_string($reference) || $reference === '' || ! is_string($intent['id'] ?? null)) {
+            return null;
+        }
+
+        $error = (array) ($intent['last_payment_error'] ?? []);
+        $status = match (true) {
+            $type === 'payment_intent.succeeded' => PaymentStatus::Succeeded,
+            ($error['code'] ?? null) === 'authentication_required' => PaymentStatus::RequiresAction,
+            default => PaymentStatus::Failed,
+        };
+        $amount = Money::of((int) ($intent['amount'] ?? 0), strtoupper((string) ($intent['currency'] ?? 'usd')));
+        $orderId = is_string($metadata['order_id'] ?? null) ? $metadata['order_id'] : (string) Str::uuid();
+        $payment = new Payment(
+            id: (string) Str::uuid(),
+            orderId: $orderId,
+            amount: $amount,
+            status: $status,
+            driver: 'stripe',
+            providerRef: $intent['id'],
+            errorCode: $status === PaymentStatus::Succeeded ? null : (string) ($error['decline_code'] ?? $error['code'] ?? 'card_error'),
+        );
+
+        return new Purchase(
+            id: (string) Str::uuid(),
+            orderId: $orderId,
+            kind: $kind,
+            payment: $payment,
+            receipt: new Receipt(id: (string) Str::uuid(), paymentId: $payment->id, orderId: $orderId, amount: $amount),
+            beneficiaryId: is_string($metadata['customer_id'] ?? null) ? $metadata['customer_id'] : null,
+            grant: ['order_reference' => $reference, 'event_id' => is_string($payload['id'] ?? null) ? $payload['id'] : null],
+        );
+    }
+
+    /**
      * `charge.dispute.created` → a neutral {@see Dispute}, or null otherwise. Pure translation —
      * no Stripe API call happens here (unlike a driver's own reversal action, which does). Null
      * when the payload isn't a dispute-creation event or is missing the charge reference/amount a

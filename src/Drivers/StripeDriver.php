@@ -480,7 +480,11 @@ class StripeDriver implements MoneyInDriver, ReversesDisputedTransfers, SettlesF
         $params = [
             'amount' => $order->total->minorUnits,
             'currency' => Str::lower($order->total->currency),
+            // `kind` with `order_reference` is what StripeWebhookTranslator::paymentIntent() reads back from a
+            // payment_intent.* event, so a host can settle the charge it placed (owner-review-20261102 STRIPE-BILLING:
+            // an off-session plan Bill whose outcome the synchronous call never learned).
             'metadata' => array_filter([
+                'kind' => $order->kind->value,
                 'order_id' => $order->id,
                 'order_reference' => $order->reference,
                 'customer_id' => $order->customer->id,
