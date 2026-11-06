@@ -13,7 +13,9 @@ use Rushing\Commerce\Contracts\MerchantResolver;
 use Rushing\Commerce\Contracts\MoneyInDriver;
 use Rushing\Commerce\Contracts\ReversesDisputedTransfers;
 use Rushing\Commerce\Contracts\SubscriptionBinder;
+use Rushing\Commerce\Contracts\SyncsPlanCatalog;
 use Rushing\Commerce\Data\BillingAddress;
+use Rushing\Commerce\Data\CatalogPlan;
 use Rushing\Commerce\Data\Customer;
 use Rushing\Commerce\Data\Dispute;
 use Rushing\Commerce\Data\LineItem;
@@ -22,6 +24,7 @@ use Rushing\Commerce\Data\Money;
 use Rushing\Commerce\Data\Order;
 use Rushing\Commerce\Data\Payment;
 use Rushing\Commerce\Data\PaymentAction;
+use Rushing\Commerce\Data\PlanCatalogRefs;
 use Rushing\Commerce\Data\Refund;
 use Rushing\Commerce\Data\Split;
 use Rushing\Commerce\Enums\Cadence;
@@ -29,6 +32,7 @@ use Rushing\Commerce\Enums\PaymentActionKind;
 use Rushing\Commerce\Enums\PaymentStatus;
 use Rushing\Commerce\Enums\PurchaseKind;
 use Rushing\Commerce\Stripe\StripeClientFactory;
+use Rushing\Commerce\Stripe\StripePlanCatalog;
 use Stripe\Exception\CardException;
 use Stripe\PaymentIntent;
 
@@ -47,8 +51,12 @@ use Stripe\PaymentIntent;
  * same reason: it lets a test assert the exact split-payment params via `Http::fake()`. The existing
  * SDK-based `pay()`/`refund()` path for a split-less Order/Payment is completely untouched — zero
  * behavior change for every non-marketplace caller of this driver.
+ *
+ * owner-review-20261102 O2: it also keeps the merchant's Stripe catalog in step with a plan's fee
+ * ({@see SyncsPlanCatalog}, implemented by {@see StripePlanCatalog}). The fee stays the price of record; nothing on
+ * the charge path reads the catalog.
  */
-class StripeDriver implements MoneyInDriver, ReversesDisputedTransfers
+class StripeDriver implements MoneyInDriver, ReversesDisputedTransfers, SyncsPlanCatalog
 {
     public function __construct(
         private StripeClientFactory $clients,
@@ -60,6 +68,16 @@ class StripeDriver implements MoneyInDriver, ReversesDisputedTransfers
     public function name(): string
     {
         return 'stripe';
+    }
+
+    public function syncPlan(CatalogPlan $plan, Merchant $merchant, ?PlanCatalogRefs $recorded = null): PlanCatalogRefs
+    {
+        return (new StripePlanCatalog($this->clients->for($merchant), $merchant->id))->sync($plan, $recorded);
+    }
+
+    public function retirePlan(PlanCatalogRefs $recorded, Merchant $merchant): PlanCatalogRefs
+    {
+        return (new StripePlanCatalog($this->clients->for($merchant), $merchant->id))->retire($recorded);
     }
 
     public function pay(Order $order): Payment
