@@ -3,10 +3,12 @@
 namespace Rushing\Commerce\Drivers;
 
 use Rushing\Commerce\Contracts\MoneyInDriver;
+use Rushing\Commerce\Contracts\SettlesFundingOnSetup;
 use Rushing\Commerce\Data\Customer;
 use Rushing\Commerce\Data\Order;
 use Rushing\Commerce\Data\Payment;
 use Rushing\Commerce\Data\PaymentAction;
+use Rushing\Commerce\Data\Purchase;
 use Rushing\Commerce\Data\Refund;
 use Rushing\Commerce\Exceptions\MoneyInUnavailable;
 
@@ -14,8 +16,11 @@ use Rushing\Commerce\Exceptions\MoneyInUnavailable;
  * The rail of a host that collects no money (purchase-walkthrough BUY-4: custody `none`). It refuses every verb,
  * loudly: custody `none` renders no purchase affordance, so a call that reaches it is a caller's defect, and a
  * refusal is safer than a Payment that could be mistaken for an outcome. Unlike `fake` it is legal in production.
+ *
+ * Its funding policy is declared, not left to the default: nothing collected here ever funds a plan (owner-review-20261102
+ * FUNDING).
  */
-class NoneDriver implements MoneyInDriver
+class NoneDriver implements MoneyInDriver, SettlesFundingOnSetup
 {
     public function name(): string
     {
@@ -35,5 +40,10 @@ class NoneDriver implements MoneyInDriver
     public function manage(Customer $customer, string $returnUrl): PaymentAction
     {
         throw MoneyInUnavailable::make('open a billing portal');
+    }
+
+    public function fundsOnSetup(Purchase $setup): bool
+    {
+        return false;
     }
 }

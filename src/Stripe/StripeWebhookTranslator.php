@@ -144,8 +144,8 @@ class StripeWebhookTranslator
      * A plan's card setup that SUCCEEDED (`setup_intent.succeeded`, from the mode=setup Checkout the subscription's hosted
      * leg opens, BUY-04) → a completed {@see Purchase} of kind {@see PurchaseKind::Subscription} that charged nothing. The
      * SetupIntent carries the session's metadata: `party_ref` is the beneficiary and `order_reference` the subscription;
-     * the grant carries both the subscription and the saved card, so the host can make the card the default and settle
-     * the subscription's funding. The SetupIntent id is the Payment's `providerRef`. Null for anything else.
+     * the grant carries the subscription, the saved card and the SetupIntent's `usage`, so the host can make the card the
+     * default and settle the subscription's funding by the rail's policy. The SetupIntent id is the Payment's `providerRef`. Null for anything else.
      *
      * @param  array<string, mixed>  $payload
      */
@@ -193,7 +193,9 @@ class StripeWebhookTranslator
                 amount: $amount,
             ),
             beneficiaryId: $party,
-            grant: ['subscription_id' => $subscription, 'payment_method' => $card],
+            // `usage` (off_session | on_session) says whether the card may be charged with the customer away: the stripe
+            // rail's funding policy reads it (owner-review-20261102 FUNDING).
+            grant: ['subscription_id' => $subscription, 'payment_method' => $card, 'usage' => is_string($intent['usage'] ?? null) ? $intent['usage'] : null],
         );
     }
 

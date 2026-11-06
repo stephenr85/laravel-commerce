@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Rushing\Commerce\Contracts\HoldsPendingPurchases;
 use Rushing\Commerce\Contracts\MoneyInDriver;
+use Rushing\Commerce\Contracts\SettlesFundingOnSetup;
 use Rushing\Commerce\Data\Customer;
 use Rushing\Commerce\Data\Order;
 use Rushing\Commerce\Data\Payment;
@@ -43,7 +44,7 @@ use Throwable;
  * in-process script still wins over it, and the real drivers never see any of this. Set the config
  * key to null to turn it off.
  */
-class FakeDriver implements HoldsPendingPurchases, MoneyInDriver
+class FakeDriver implements HoldsPendingPurchases, MoneyInDriver, SettlesFundingOnSetup
 {
     /** @var list<Throwable|array{status: PaymentStatus, errorCode: string|null}> */
     private static array $script = [];
@@ -110,6 +111,17 @@ class FakeDriver implements HoldsPendingPurchases, MoneyInDriver
     public function manage(Customer $customer, string $returnUrl): PaymentAction
     {
         return PaymentAction::redirect($this->route('commerce.fake.portal', ['return' => $returnUrl]));
+    }
+
+    /**
+     * owner-review-20261102 FUNDING (replaces beam-commerce's LocalFakeFunding, O3 (b)): a plan's card setup confirmed on
+     * this rail's page funds the plan, so a local install can finish a purchase with no provider. Never in production:
+     * the manager already refuses to build this rail there ({@see \Rushing\Commerce\Exceptions\FakeDriverInProduction}),
+     * and this answers false there too rather than relying on that refusal alone.
+     */
+    public function fundsOnSetup(Purchase $setup): bool
+    {
+        return $setup->payment->driver === $this->name() && ! app()->environment('production');
     }
 
     /** The fake rail's own pages are host-mounted (`Route::commerceFakeRailRoutes()`); unmounted is a loud error. */

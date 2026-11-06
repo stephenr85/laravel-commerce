@@ -127,7 +127,7 @@ it('translates a plan\'s succeeded card setup into a Subscription purchase carry
 
     expect($purchase->kind)->toBe(PurchaseKind::Subscription)
         ->and($purchase->beneficiaryId)->toBe('tenant-x')
-        ->and($purchase->grant)->toBe(['subscription_id' => 'sub-1', 'payment_method' => 'pm_1'])
+        ->and($purchase->grant)->toBe(['subscription_id' => 'sub-1', 'payment_method' => 'pm_1', 'usage' => null])
         ->and($purchase->payment->providerRef)->toBe('seti_1')
         ->and($purchase->payment->succeeded())->toBeTrue()
         // A setup charges nothing.

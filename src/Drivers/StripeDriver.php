@@ -12,6 +12,7 @@ use Rushing\Commerce\Contracts\CustomerVault;
 use Rushing\Commerce\Contracts\MerchantResolver;
 use Rushing\Commerce\Contracts\MoneyInDriver;
 use Rushing\Commerce\Contracts\ReversesDisputedTransfers;
+use Rushing\Commerce\Contracts\SettlesFundingOnSetup;
 use Rushing\Commerce\Contracts\SubscriptionBinder;
 use Rushing\Commerce\Contracts\SyncsPlanCatalog;
 use Rushing\Commerce\Data\BillingAddress;
@@ -25,6 +26,7 @@ use Rushing\Commerce\Data\Order;
 use Rushing\Commerce\Data\Payment;
 use Rushing\Commerce\Data\PaymentAction;
 use Rushing\Commerce\Data\PlanCatalogRefs;
+use Rushing\Commerce\Data\Purchase;
 use Rushing\Commerce\Data\Refund;
 use Rushing\Commerce\Data\Split;
 use Rushing\Commerce\Enums\Cadence;
@@ -55,8 +57,12 @@ use Stripe\PaymentIntent;
  * owner-review-20261102 O2: it also keeps the merchant's Stripe catalog in step with a plan's fee
  * ({@see SyncsPlanCatalog}, implemented by {@see StripePlanCatalog}). The fee stays the price of record; nothing on
  * the charge path reads the catalog.
+ *
+ * owner-review-20261102 FUNDING: a plan is funded once its card is on file ({@see SettlesFundingOnSetup}): a succeeded
+ * SetupIntent that saved a payment method for OFF-SESSION use, which is what the mode=setup Checkout this driver opens
+ * asks for. A later failed charge is the host's to record (past due), never a return to free.
  */
-class StripeDriver implements MoneyInDriver, ReversesDisputedTransfers, SyncsPlanCatalog
+class StripeDriver implements MoneyInDriver, ReversesDisputedTransfers, SettlesFundingOnSetup, SyncsPlanCatalog
 {
     public function __construct(
         private StripeClientFactory $clients,
@@ -68,6 +74,20 @@ class StripeDriver implements MoneyInDriver, ReversesDisputedTransfers, SyncsPla
     public function name(): string
     {
         return 'stripe';
+    }
+
+    /**
+     * A succeeded SetupIntent ({@see \Rushing\Commerce\Stripe\StripeWebhookTranslator::subscriptionSetup()}) funds the
+     * plan when it saved a card the platform may charge with the customer away: `usage = off_session`. An on-session
+     * setup, or one with no card, does not: a Bill could not be charged on it.
+     */
+    public function fundsOnSetup(Purchase $setup): bool
+    {
+        $card = $setup->grant['payment_method'] ?? null;
+
+        return $setup->payment->driver === $this->name()
+            && is_string($card) && $card !== ''
+            && ($setup->grant['usage'] ?? null) === 'off_session';
     }
 
     public function syncPlan(CatalogPlan $plan, Merchant $merchant, ?PlanCatalogRefs $recorded = null): PlanCatalogRefs
