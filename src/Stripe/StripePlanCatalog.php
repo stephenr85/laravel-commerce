@@ -151,13 +151,17 @@ final class StripePlanCatalog
         $lookupKey = "plan:{$plan->slug}:{$key}";
 
         $current = $recordedId !== null ? $this->retrievePrice($recordedId) : null;
-        $current ??= $this->priceByLookupKey($lookupKey, $productId);
 
         if ($current !== null && ! $current->active) {
-            // Archived elsewhere (the dashboard, or a retire): it still bills whoever holds it, so the plan keeps it.
+            // Archived elsewhere (the dashboard, a retire, or a run that replaced it and lost its write-back): it still
+            // bills whoever holds it, so the plan keeps claiming it.
             $archived[] = $current->id;
             $current = null;
         }
+
+        // Nothing current on record: an active Price under this plan's lookup key is the one a previous run made (its
+        // write-back lost), so adopt it rather than mint another.
+        $current ??= $this->priceByLookupKey($lookupKey, $productId);
 
         if ($desired === null) {
             if ($current !== null) {
@@ -186,8 +190,12 @@ final class StripePlanCatalog
             'nickname' => "{$plan->name} ({$key})",
             'metadata' => [...$this->metadata($plan), 'interval' => $key],
         ];
+        // The key names what this create replaces AND the archive history so far: a retry of the same step replays it,
+        // while offering the same amount again after it was withdrawn (archived, so the replay would hand back a dead
+        // Price) is a new step with a new key.
         $replacing = $current?->id ?? 'none';
-        $created = $this->stripe->prices->create($params, $this->idempotency($plan, "price:{$key}:{$replacing}", $params));
+        $history = substr(hash('sha256', implode(',', array_unique($archived))), 0, 12);
+        $created = $this->stripe->prices->create($params, $this->idempotency($plan, "price:{$key}:{$replacing}:{$history}", $params));
 
         if ($current !== null) {
             $this->archivePrice($current->id);

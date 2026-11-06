@@ -106,15 +106,44 @@ it('recovers a lost write-back from Stripe itself instead of minting duplicates'
         ->and($refs->monthlyPriceId)->not->toBeNull();
 });
 
-it('sends an idempotency key on every create, so a retried job cannot mint twice while search lags', function () {
+it('retries a first sync that lost its write-back while Search lags without minting a second Product or Price', function () {
     $this->stripe->searchLags = true;
     $this->catalog->syncPlan(o2Plan(), $this->merchant);
 
-    $creates = array_values(array_filter($this->stripe->requests, fn ($r) => $r['method'] === 'post' && in_array($r['path'], ['/v1/products', '/v1/prices'], true)));
-    expect($creates)->toHaveCount(3);
-    foreach ($creates as $create) {
+    // The job died before recording anything; the retry cannot see the Product through Search yet.
+    $retry = $this->catalog->syncPlan(o2Plan(), $this->merchant, null);
+
+    expect($this->stripe->products)->toHaveCount(1)
+        ->and($this->stripe->prices)->toHaveCount(2)
+        ->and($retry->productId)->toBe(array_key_first($this->stripe->products));
+    foreach ($this->stripe->creates() as $create) {
         expect($create['idempotency'])->toStartWith('plan-catalog:default:plan-uuid-1:');
     }
+});
+
+it('retries a fee change that lost its write-back without minting a duplicate Price', function () {
+    $before = $this->catalog->syncPlan(o2Plan(monthly: 99.0), $this->merchant);
+    $after = $this->catalog->syncPlan(o2Plan(monthly: 129.0), $this->merchant, $before);
+
+    // The worker died after Stripe changed and before the refs were saved: the retry sees the ORIGINAL refs.
+    $retry = $this->catalog->syncPlan(o2Plan(monthly: 129.0), $this->merchant, $before);
+
+    expect($this->stripe->prices)->toHaveCount(3)
+        ->and($retry->monthlyPriceId)->toBe($after->monthlyPriceId)
+        ->and($this->stripe->prices[$after->monthlyPriceId])->toMatchArray(['active' => true, 'lookup_key' => 'plan:starter:monthly'])
+        ->and($retry->claims($before->monthlyPriceId))->toBeTrue();
+});
+
+it('offers a withdrawn fee again as a new active Price, never the archived one an idempotent replay would return', function () {
+    $paid = $this->catalog->syncPlan(o2Plan(monthly: 99.0, annualMonthly: null), $this->merchant);
+    $free = $this->catalog->syncPlan(o2Plan(monthly: 0.0, annualMonthly: null), $this->merchant, $paid);
+
+    $again = $this->catalog->syncPlan(o2Plan(monthly: 99.0, annualMonthly: null), $this->merchant, $free);
+
+    expect($again->monthlyPriceId)->not->toBe($paid->monthlyPriceId)
+        ->and($this->stripe->prices[$again->monthlyPriceId])->toMatchArray(['active' => true, 'unit_amount' => 9900, 'lookup_key' => 'plan:starter:monthly'])
+        ->and($this->stripe->prices[$paid->monthlyPriceId]['active'])->toBeFalse()
+        ->and($again->claims($paid->monthlyPriceId))->toBeTrue();
 });
 
 it('mints a new Price on a fee change, moves the lookup key and archives the old Price', function () {

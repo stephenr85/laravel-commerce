@@ -27,6 +27,14 @@ class FakeStripeCatalog implements ClientInterface
 
     private int $sequence = 0;
 
+    /**
+     * Stripe's idempotency replay: a POST with a key already seen returns the FIRST response verbatim (even if the
+     * object has since changed, e.g. been archived), and the same key with different parameters is an error.
+     *
+     * @var array<string, array{params: array, response: array}>
+     */
+    private array $idempotent = [];
+
     public function request($method, $absUrl, $headers, $params, $hasFile, $apiMode = 'v1', $maxNetworkRetries = null)
     {
         $method = strtolower((string) $method);
@@ -41,6 +49,28 @@ class FakeStripeCatalog implements ClientInterface
         }
         $this->requests[] = ['method' => $method, 'path' => $path, 'params' => $params, 'idempotency' => $idempotency];
 
+        if ($method === 'post' && $idempotency !== null && isset($this->idempotent[$idempotency])) {
+            return $this->idempotent[$idempotency]['params'] === $params
+                ? $this->idempotent[$idempotency]['response']
+                : [json_encode(['error' => ['type' => 'idempotency_error', 'message' => 'Keys for idempotent requests can only be used with the same parameters they were first used with.']]), 400, []];
+        }
+
+        $response = $this->route($method, $path, $params);
+        if ($method === 'post' && $idempotency !== null) {
+            $this->idempotent[$idempotency] = ['params' => $params, 'response' => $response];
+        }
+
+        return $response;
+    }
+
+    /** Requests that created an object (POST to a collection), in order. */
+    public function creates(): array
+    {
+        return array_values(array_filter($this->requests, fn (array $r) => $r['method'] === 'post' && in_array($r['path'], ['/v1/products', '/v1/prices'], true)));
+    }
+
+    private function route(string $method, string $path, array $params): array
+    {
         return match (true) {
             $method === 'get' && $path === '/v1/products/search' => $this->ok($this->list(array_values(array_filter(
                 $this->searchLags ? [] : $this->products,
