@@ -12,8 +12,11 @@ use Rushing\Commerce\Contracts\CustomerVault;
 use Rushing\Commerce\Contracts\MerchantResolver;
 use Rushing\Commerce\Contracts\MoneyInDriver;
 use Rushing\Commerce\Contracts\ReversesDisputedTransfers;
+use Rushing\Commerce\Contracts\SettlesFundingOnSetup;
 use Rushing\Commerce\Contracts\SubscriptionBinder;
+use Rushing\Commerce\Contracts\SyncsPlanCatalog;
 use Rushing\Commerce\Data\BillingAddress;
+use Rushing\Commerce\Data\CatalogPlan;
 use Rushing\Commerce\Data\Customer;
 use Rushing\Commerce\Data\Dispute;
 use Rushing\Commerce\Data\LineItem;
@@ -22,6 +25,8 @@ use Rushing\Commerce\Data\Money;
 use Rushing\Commerce\Data\Order;
 use Rushing\Commerce\Data\Payment;
 use Rushing\Commerce\Data\PaymentAction;
+use Rushing\Commerce\Data\PlanCatalogRefs;
+use Rushing\Commerce\Data\Purchase;
 use Rushing\Commerce\Data\Refund;
 use Rushing\Commerce\Data\Split;
 use Rushing\Commerce\Enums\Cadence;
@@ -29,6 +34,7 @@ use Rushing\Commerce\Enums\PaymentActionKind;
 use Rushing\Commerce\Enums\PaymentStatus;
 use Rushing\Commerce\Enums\PurchaseKind;
 use Rushing\Commerce\Stripe\StripeClientFactory;
+use Rushing\Commerce\Stripe\StripePlanCatalog;
 use Stripe\Exception\CardException;
 use Stripe\PaymentIntent;
 
@@ -47,8 +53,16 @@ use Stripe\PaymentIntent;
  * same reason: it lets a test assert the exact split-payment params via `Http::fake()`. The existing
  * SDK-based `pay()`/`refund()` path for a split-less Order/Payment is completely untouched — zero
  * behavior change for every non-marketplace caller of this driver.
+ *
+ * owner-review-20261102 O2: it also keeps the merchant's Stripe catalog in step with a plan's fee
+ * ({@see SyncsPlanCatalog}, implemented by {@see StripePlanCatalog}). The fee stays the price of record; nothing on
+ * the charge path reads the catalog.
+ *
+ * owner-review-20261102 FUNDING: a plan is funded once its card is on file ({@see SettlesFundingOnSetup}): a succeeded
+ * SetupIntent that saved a payment method for OFF-SESSION use, which is what the mode=setup Checkout this driver opens
+ * asks for. A later failed charge is the host's to record (past due), never a return to free.
  */
-class StripeDriver implements MoneyInDriver, ReversesDisputedTransfers
+class StripeDriver implements MoneyInDriver, ReversesDisputedTransfers, SettlesFundingOnSetup, SyncsPlanCatalog
 {
     public function __construct(
         private StripeClientFactory $clients,
@@ -60,6 +74,30 @@ class StripeDriver implements MoneyInDriver, ReversesDisputedTransfers
     public function name(): string
     {
         return 'stripe';
+    }
+
+    /**
+     * A succeeded SetupIntent ({@see \Rushing\Commerce\Stripe\StripeWebhookTranslator::subscriptionSetup()}) funds the
+     * plan when it saved a card the platform may charge with the customer away: `usage = off_session`. An on-session
+     * setup, or one with no card, does not: a Bill could not be charged on it.
+     */
+    public function fundsOnSetup(Purchase $setup): bool
+    {
+        $card = $setup->grant['payment_method'] ?? null;
+
+        return $setup->payment->driver === $this->name()
+            && is_string($card) && $card !== ''
+            && ($setup->grant['usage'] ?? null) === 'off_session';
+    }
+
+    public function syncPlan(CatalogPlan $plan, Merchant $merchant, ?PlanCatalogRefs $recorded = null): PlanCatalogRefs
+    {
+        return (new StripePlanCatalog($this->clients->for($merchant), $merchant->id))->sync($plan, $recorded);
+    }
+
+    public function retirePlan(PlanCatalogRefs $recorded, Merchant $merchant): PlanCatalogRefs
+    {
+        return (new StripePlanCatalog($this->clients->for($merchant), $merchant->id))->retire($recorded);
     }
 
     public function pay(Order $order): Payment
@@ -442,7 +480,11 @@ class StripeDriver implements MoneyInDriver, ReversesDisputedTransfers
         $params = [
             'amount' => $order->total->minorUnits,
             'currency' => Str::lower($order->total->currency),
+            // `kind` with `order_reference` is what StripeWebhookTranslator::paymentIntent() reads back from a
+            // payment_intent.* event, so a host can settle the charge it placed (owner-review-20261102 STRIPE-BILLING:
+            // an off-session plan Bill whose outcome the synchronous call never learned).
             'metadata' => array_filter([
+                'kind' => $order->kind->value,
                 'order_id' => $order->id,
                 'order_reference' => $order->reference,
                 'customer_id' => $order->customer->id,
@@ -476,6 +518,11 @@ class StripeDriver implements MoneyInDriver, ReversesDisputedTransfers
                 // No user is present to answer a step-up, so turn a requires_action into a
                 // hard decline (CardException) the host can classify, not a limbo intent.
                 $params['error_on_requires_action'] = true;
+                // Stripe refuses error_on_requires_action on an intent whose payment methods the Dashboard manages
+                // ("can't be used with PaymentIntents which use payment methods managed through the Dashboard"; measured
+                // in test mode, owner-review-20261102 STRIPE-BILLING): every off-session charge failed there. The saved
+                // payment method charged unattended is a card (a plan's mandate, an auto-reload card), so name the type.
+                $params['payment_method_types'] = ['card'];
             }
         }
 

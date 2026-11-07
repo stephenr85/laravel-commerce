@@ -3,6 +3,7 @@
 use Rushing\Commerce\Data\Dispute;
 use Rushing\Commerce\Data\InvoiceRef;
 use Rushing\Commerce\Data\SubscriptionState;
+use Rushing\Commerce\Enums\PaymentStatus;
 use Rushing\Commerce\Enums\PurchaseKind;
 use Rushing\Commerce\Stripe\StripeWebhookTranslator;
 
@@ -127,7 +128,7 @@ it('translates a plan\'s succeeded card setup into a Subscription purchase carry
 
     expect($purchase->kind)->toBe(PurchaseKind::Subscription)
         ->and($purchase->beneficiaryId)->toBe('tenant-x')
-        ->and($purchase->grant)->toBe(['subscription_id' => 'sub-1', 'payment_method' => 'pm_1'])
+        ->and($purchase->grant)->toBe(['subscription_id' => 'sub-1', 'payment_method' => 'pm_1', 'usage' => null])
         ->and($purchase->payment->providerRef)->toBe('seti_1')
         ->and($purchase->payment->succeeded())->toBeTrue()
         // A setup charges nothing.
@@ -144,3 +145,51 @@ it('returns null for any other setup, an unsucceeded one, or one missing what se
     'no party' => [setupPayload([], ['party_ref' => ''])],
     'no card' => [setupPayload(['payment_method' => null])],
 ]);
+
+// ── owner-review-20261102 STRIPE-BILLING: an off-session charge's outcome, from payment_intent.* ─────────────────────
+
+function piPayload(string $type, array $intent = []): array
+{
+    return ['id' => 'evt_1', 'type' => $type, 'data' => ['object' => array_merge([
+        'id' => 'pi_1', 'object' => 'payment_intent', 'amount' => 9900, 'currency' => 'usd', 'status' => 'succeeded',
+        'metadata' => ['kind' => 'subscription', 'order_reference' => 'bill-b1-attempt-a1', 'customer_id' => 'tenant-x', 'order_id' => 'ord-1'],
+    ], $intent)]];
+}
+
+it('translates payment_intent.succeeded into a succeeded Purchase naming the Order reference, the party and the intent', function () {
+    $purchase = (new StripeWebhookTranslator)->paymentIntent(piPayload('payment_intent.succeeded'));
+
+    expect($purchase->kind)->toBe(PurchaseKind::Subscription)
+        ->and($purchase->payment->status)->toBe(PaymentStatus::Succeeded)
+        ->and($purchase->payment->providerRef)->toBe('pi_1')
+        ->and($purchase->payment->amount->minorUnits)->toBe(9900)
+        ->and($purchase->payment->errorCode)->toBeNull()
+        ->and($purchase->beneficiaryId)->toBe('tenant-x')
+        ->and($purchase->grant)->toBe(['order_reference' => 'bill-b1-attempt-a1', 'event_id' => 'evt_1']);
+});
+
+it('translates payment_intent.payment_failed into a Failed Purchase with the decline code, or RequiresAction for a step-up', function () {
+    $declined = (new StripeWebhookTranslator)->paymentIntent(piPayload('payment_intent.payment_failed', [
+        'status' => 'requires_payment_method',
+        'last_payment_error' => ['type' => 'card_error', 'code' => 'card_declined', 'decline_code' => 'insufficient_funds'],
+    ]));
+    $stepUp = (new StripeWebhookTranslator)->paymentIntent(piPayload('payment_intent.payment_failed', [
+        'status' => 'requires_payment_method',
+        'last_payment_error' => ['type' => 'card_error', 'code' => 'authentication_required'],
+    ]));
+
+    expect($declined->payment->status)->toBe(PaymentStatus::Failed)
+        ->and($declined->payment->errorCode)->toBe('insufficient_funds')
+        ->and($stepUp->payment->status)->toBe(PaymentStatus::RequiresAction)
+        ->and($stepUp->payment->errorCode)->toBe('authentication_required');
+});
+
+it('ignores a payment_intent event this engine did not create: no kind or reference metadata, an unknown kind, or another event', function () {
+    $t = new StripeWebhookTranslator;
+
+    expect($t->paymentIntent(piPayload('payment_intent.succeeded', ['metadata' => []])))->toBeNull()
+        ->and($t->paymentIntent(piPayload('payment_intent.succeeded', ['metadata' => ['kind' => 'subscription']])))->toBeNull()
+        ->and($t->paymentIntent(piPayload('payment_intent.succeeded', ['metadata' => ['kind' => 'nonsense', 'order_reference' => 'r']])))->toBeNull()
+        ->and($t->paymentIntent(piPayload('payment_intent.created')))->toBeNull()
+        ->and($t->paymentIntent(piPayload('payment_intent.requires_action')))->toBeNull();
+});

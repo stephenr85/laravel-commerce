@@ -144,8 +144,8 @@ class StripeWebhookTranslator
      * A plan's card setup that SUCCEEDED (`setup_intent.succeeded`, from the mode=setup Checkout the subscription's hosted
      * leg opens, BUY-04) → a completed {@see Purchase} of kind {@see PurchaseKind::Subscription} that charged nothing. The
      * SetupIntent carries the session's metadata: `party_ref` is the beneficiary and `order_reference` the subscription;
-     * the grant carries both the subscription and the saved card, so the host can make the card the default and settle
-     * the subscription's funding. The SetupIntent id is the Payment's `providerRef`. Null for anything else.
+     * the grant carries the subscription, the saved card and the SetupIntent's `usage`, so the host can make the card the
+     * default and settle the subscription's funding by the rail's policy. The SetupIntent id is the Payment's `providerRef`. Null for anything else.
      *
      * @param  array<string, mixed>  $payload
      */
@@ -193,7 +193,64 @@ class StripeWebhookTranslator
                 amount: $amount,
             ),
             beneficiaryId: $party,
-            grant: ['subscription_id' => $subscription, 'payment_method' => $card],
+            // `usage` (off_session | on_session) says whether the card may be charged with the customer away: the stripe
+            // rail's funding policy reads it (owner-review-20261102 FUNDING).
+            grant: ['subscription_id' => $subscription, 'payment_method' => $card, 'usage' => is_string($intent['usage'] ?? null) ? $intent['usage'] : null],
+        );
+    }
+
+    /**
+     * The outcome of a PaymentIntent this engine created (owner-review-20261102 STRIPE-BILLING):
+     * `payment_intent.succeeded` → a Purchase whose Payment succeeded, `payment_intent.payment_failed` → one that failed
+     * (RequiresAction when Stripe's `last_payment_error.code` is `authentication_required`, a step-up no one was present
+     * to answer). The intent's metadata, written by StripeDriver::intentParams(), names the purchase `kind`, the Order's
+     * `order_reference` (a host's own key for the charge, e.g. a plan Bill's attempt) and the party (`customer_id`); the
+     * grant carries the reference and the event id. The decline code rides as the Payment's errorCode. Null for any other
+     * event, or an intent without that metadata: not ours to settle.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    public function paymentIntent(array $payload): ?Purchase
+    {
+        $type = $payload['type'] ?? null;
+        if (! in_array($type, ['payment_intent.succeeded', 'payment_intent.payment_failed'], true)) {
+            return null;
+        }
+
+        $intent = $payload['data']['object'] ?? [];
+        $metadata = $intent['metadata'] ?? [];
+        $kind = PurchaseKind::tryFrom((string) ($metadata['kind'] ?? ''));
+        $reference = $metadata['order_reference'] ?? null;
+        if ($kind === null || ! is_string($reference) || $reference === '' || ! is_string($intent['id'] ?? null)) {
+            return null;
+        }
+
+        $error = (array) ($intent['last_payment_error'] ?? []);
+        $status = match (true) {
+            $type === 'payment_intent.succeeded' => PaymentStatus::Succeeded,
+            ($error['code'] ?? null) === 'authentication_required' => PaymentStatus::RequiresAction,
+            default => PaymentStatus::Failed,
+        };
+        $amount = Money::of((int) ($intent['amount'] ?? 0), strtoupper((string) ($intent['currency'] ?? 'usd')));
+        $orderId = is_string($metadata['order_id'] ?? null) ? $metadata['order_id'] : (string) Str::uuid();
+        $payment = new Payment(
+            id: (string) Str::uuid(),
+            orderId: $orderId,
+            amount: $amount,
+            status: $status,
+            driver: 'stripe',
+            providerRef: $intent['id'],
+            errorCode: $status === PaymentStatus::Succeeded ? null : (string) ($error['decline_code'] ?? $error['code'] ?? 'card_error'),
+        );
+
+        return new Purchase(
+            id: (string) Str::uuid(),
+            orderId: $orderId,
+            kind: $kind,
+            payment: $payment,
+            receipt: new Receipt(id: (string) Str::uuid(), paymentId: $payment->id, orderId: $orderId, amount: $amount),
+            beneficiaryId: is_string($metadata['customer_id'] ?? null) ? $metadata['customer_id'] : null,
+            grant: ['order_reference' => $reference, 'event_id' => is_string($payload['id'] ?? null) ? $payload['id'] : null],
         );
     }
 
