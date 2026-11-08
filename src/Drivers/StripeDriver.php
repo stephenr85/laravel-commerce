@@ -512,17 +512,18 @@ class StripeDriver implements MoneyInDriver, ReversesDisputedTransfers, SettlesF
         if ($order->paymentMethodRef !== null) {
             $params['payment_method'] = $order->paymentMethodRef;
             $params['confirm'] = true;
+            // A server-confirmed intent on an account whose payment methods the Dashboard manages must name its types (or
+            // carry a return_url): Stripe refused it otherwise, on-session as off (measured in test mode: off-session,
+            // owner-review-20261102 STRIPE-BILLING; on-session, numero billing 06, where the canned transport had hidden
+            // it). The card charged here is a card, so name the type; a client-confirmed intent (no paymentMethodRef)
+            // keeps the Dashboard's payment methods.
+            $params['payment_method_types'] = ['card'];
 
             if ($order->offSession) {
                 $params['off_session'] = true;
                 // No user is present to answer a step-up, so turn a requires_action into a
                 // hard decline (CardException) the host can classify, not a limbo intent.
                 $params['error_on_requires_action'] = true;
-                // Stripe refuses error_on_requires_action on an intent whose payment methods the Dashboard manages
-                // ("can't be used with PaymentIntents which use payment methods managed through the Dashboard"; measured
-                // in test mode, owner-review-20261102 STRIPE-BILLING): every off-session charge failed there. The saved
-                // payment method charged unattended is a card (a plan's mandate, an auto-reload card), so name the type.
-                $params['payment_method_types'] = ['card'];
             }
         }
 
