@@ -66,6 +66,29 @@ it('reverses a stripe Payment into a Refund', function () {
     Event::assertDispatched(PaymentRefunded::class);
 });
 
+it('refunds a Payment idempotently: a repeated full refund sends the same Idempotency-Key and gets the same refund back', function () {
+    $payment = new Payment(
+        id: 'pay_1',
+        orderId: 'ord_1',
+        amount: Money::of(1500),
+        status: PaymentStatus::Succeeded,
+        driver: 'stripe',
+        providerRef: 'pi_fake_123',
+        merchantId: 'default',
+    );
+
+    // A host retrying a refund whose response it lost (a timeout after Stripe accepted it) must not refund twice.
+    $first = app(MoneyIn::class)->refund($payment);
+    $retry = app(MoneyIn::class)->refund($payment);
+
+    $keys = collect($this->stripe->requests)
+        ->filter(fn ($r) => str_contains($r['url'], '/v1/refunds'))
+        ->map(fn ($r) => collect($r['headers'])->first(fn ($h) => str_starts_with($h, 'Idempotency-Key: ')))
+        ->values();
+    expect($keys->all())->toBe(['Idempotency-Key: refund-full-pi_fake_123', 'Idempotency-Key: refund-full-pi_fake_123'])
+        ->and($retry->providerRef)->toBe($first->providerRef);
+});
+
 it('binds a recurring Order to a subscription through the host SubscriptionBinder', function () {
     $binder = new RecordingSubscriptionBinder;
     app()->instance(SubscriptionBinder::class, $binder);

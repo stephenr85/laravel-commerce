@@ -276,13 +276,19 @@ class StripeDriver implements MoneyInDriver, ReversesDisputedTransfers, SettlesF
         return $this->vault->resolveCustomer($customer, $merchant)->providerRef;
     }
 
+    /**
+     * Refund the WHOLE payment: no amount is sent, so Stripe refunds everything captured. The Idempotency-Key is therefore
+     * 'refund-full-<PaymentIntent>': one full refund per payment, so a host retrying a refund whose response it lost (a
+     * timeout after Stripe accepted it) gets that same refund back instead of a second one. A partial refund
+     * ({@see refundWithSplit()}, or any future amount-bearing refund) must use a different key, never this one.
+     */
     public function refund(Payment $payment): Refund
     {
         $merchant = $this->merchants->forPayment($payment);
 
         $refund = $this->clients->for($merchant)->refunds->create(array_filter([
             'payment_intent' => $payment->providerRef,
-        ], fn ($value) => $value !== null));
+        ], fn ($value) => $value !== null), ['idempotency_key' => 'refund-full-'.$payment->providerRef]);
 
         return new Refund(
             id: (string) Str::uuid(),
