@@ -34,6 +34,11 @@ class CannedStripeHttpClient implements ClientInterface
     /** @var array<int, array<string, mixed>> Per-request options (idempotency key, etc.). */
     public array $options = [];
 
+    /** @var array<string, string> Refund response bodies by Idempotency-Key, replayed as Stripe replays them. */
+    private array $refundsByKey = [];
+
+    private int $refundCount = 0;
+
     public function request($method, $absUrl, $headers, $params, $hasFile, $apiMode = 'v1')
     {
         $this->requests[] = ['method' => $method, 'url' => $absUrl, 'params' => $params, 'headers' => $headers];
@@ -89,15 +94,39 @@ class CannedStripeHttpClient implements ClientInterface
                 'object' => 'billing_portal.session',
                 'url' => 'https://billing.stripe.test/p/session/bps_fake_123',
             ]),
-            str_contains($absUrl, '/v1/refunds') => json_encode([
-                'id' => 're_fake_123',
-                'object' => 'refund',
-                'status' => 'succeeded',
-                'payment_intent' => $params['payment_intent'] ?? null,
-            ]),
+            str_contains($absUrl, '/v1/refunds') => $this->refund($params, $headers),
             default => json_encode(['id' => 'obj_fake', 'object' => 'unknown']),
         };
 
         return [$body, 200, []];
+    }
+
+    /**
+     * A refund as Stripe creates it: each new request makes a new refund (the first is re_fake_123), while a request
+     * repeating an Idempotency-Key replays that key's first response instead of refunding again.
+     *
+     * @param  array<int, string>  $headers
+     */
+    private function refund(array $params, array $headers): string
+    {
+        $key = null;
+        foreach ($headers as $header) {
+            if (stripos($header, 'Idempotency-Key: ') === 0) {
+                $key = substr($header, strlen('Idempotency-Key: '));
+            }
+        }
+
+        if ($key !== null && isset($this->refundsByKey[$key])) {
+            return $this->refundsByKey[$key];
+        }
+
+        $body = json_encode([
+            'id' => 're_fake_'.(123 + $this->refundCount++),
+            'object' => 'refund',
+            'status' => 'succeeded',
+            'payment_intent' => $params['payment_intent'] ?? null,
+        ]);
+
+        return $key === null ? $body : $this->refundsByKey[$key] = $body;
     }
 }
