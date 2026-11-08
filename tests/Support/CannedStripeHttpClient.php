@@ -42,6 +42,21 @@ class CannedStripeHttpClient implements ClientInterface
             return [json_encode(['error' => $this->paymentIntentError]), 402, []];
         }
 
+        // As Stripe answers on an account whose payment methods the Dashboard manages (measured in test mode, 2026-11-08,
+        // numero billing 06): a PaymentIntent created confirmed must name its payment method types, opt out of redirects,
+        // or carry a return_url. This canned transport used to accept it, which is how the engine's on-session confirm
+        // shipped unable to charge.
+        if ($method === 'post' && str_ends_with(parse_url($absUrl, PHP_URL_PATH) ?? '', '/v1/payment_intents')
+            && ($params['confirm'] ?? null) === 'true'
+            && ! isset($params['payment_method_types'])
+            && ($params['automatic_payment_methods']['allow_redirects'] ?? null) !== 'never'
+            && ! isset($params['return_url'])) {
+            return [json_encode(['error' => [
+                'type' => 'invalid_request_error',
+                'message' => 'This PaymentIntent is configured to accept payment methods enabled in your Dashboard. Because some of these payment methods might redirect your customer off of your page, you must provide a `return_url`.',
+            ]]), 400, []];
+        }
+
         $body = match (true) {
             str_contains($absUrl, '/v1/payment_intents') => json_encode([
                 'id' => 'pi_fake_123',

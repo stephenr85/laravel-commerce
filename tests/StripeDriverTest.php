@@ -108,6 +108,32 @@ it('charges a saved payment method off-session against the resolved provider cus
         ->and($params)->not->toHaveKey('setup_future_usage');
 });
 
+it('charges a saved payment method ON-session (the buyer at checkout) naming the card type, as Stripe requires of a server-confirmed intent', function () {
+    app()->instance(CustomerVault::class, new RecordingCustomerVault);
+
+    // Before: on an account whose payment methods the Dashboard manages, Stripe refused this confirm with a 400 asking for
+    // a return_url (measured in test mode, numero billing 06); the canned transport now answers the same way.
+    $purchase = app(MoneyIn::class)->place(testOrder(minorUnits: 1900, paymentMethodRef: 'pm_saved_1'), 'stripe');
+
+    $params = $this->stripe->requests[0]['params'];
+    expect($purchase->payment->status)->toBe(PaymentStatus::Succeeded)
+        ->and($params['payment_method'])->toBe('pm_saved_1')
+        ->and($params['confirm'])->toBe('true')
+        ->and($params['payment_method_types'])->toBe(['card'])
+        ->and($params)->not->toHaveKey('off_session')
+        ->and($params)->not->toHaveKey('error_on_requires_action');
+});
+
+it('leaves a client-confirmed intent to the Dashboard\'s payment methods: no type pinned, no server confirm', function () {
+    app()->instance(CustomerVault::class, new RecordingCustomerVault);
+
+    app(MoneyIn::class)->place(testOrder(minorUnits: 1500, savePaymentMethod: true), 'stripe');
+
+    $params = $this->stripe->requests[0]['params'];
+    expect($params)->not->toHaveKey('payment_method_types')
+        ->and($params)->not->toHaveKey('confirm');
+});
+
 it('remembers the card presented at checkout and passes a billing address on the fresh path', function () {
     app()->instance(CustomerVault::class, new RecordingCustomerVault);
 
